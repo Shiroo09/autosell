@@ -10,7 +10,7 @@ Fotoğraflarını yükle ve birkaç satır not yaz; gerisini AutoSell hazırlar:
 - **Otomatik ilan verme:** Kendi tarayıcı oturumunla Sahibinden ve Letgo'da ilan verir: kategori, form, fotoğraf, adres, önizleme. Doping ve öne çıkarma adımları ücretsiz geçilir.
 - **Fırsat avcısı:** Takip listelerindeki yeni ilanları tarar ve emsal ilanlarla fiyat araştırması yapar. Tahmini kâr, marj ve risk puanıyla al-sat fırsatlarını bulur, istersen Telegram'dan bildirir.
 - **Web paneli:** Mobil ve masaüstü uyumludur, telefonun ana ekranına eklenebilir (PWA) ve karanlık modu destekler.
-- **Yapay zekâ sağlayıcısı:** Varsayılan olarak Claude (Anthropic) kullanılır. OpenAI uyumlu her API da desteklenir: OpenAI, OpenRouter, Groq, DeepSeek, yerel Ollama ve LM Studio.
+- **Yapay zekâ sağlayıcısı:** OpenAI uyumlu her API desteklenir. Varsayılan olarak `betaapiv2.llmapi.art` üzerindeki **muse-spark-1.3** modeli kullanılır; OpenAI, OpenRouter, Groq, DeepSeek, yerel Ollama ve LM Studio da seçilebilir. İstenirse Claude (Anthropic) kullanılabilir.
 
 > ⚠️ **Önemli:** Sahibinden ve Letgo'nun kullanım koşulları otomasyon araçlarını kısıtlayabilir. Araç yalnızca **kendi hesabınla, kendi ilanların için** tasarlandı ve sorumluluk kullanıcıya aittir.
 >
@@ -36,13 +36,20 @@ playwright install chromium       # otomasyonun kullanacağı tarayıcı
 
 İsteğe bağlı: iPhone HEIC fotoğrafları için `pip install pillow-heif`.
 
+API anahtarını panelden girebilir ya da `.env` dosyasına yazabilirsin. `.env` git'e eklenmez:
+
+```bash
+cp .env.example .env      # Windows: copy .env.example .env
+# .env içinde OPENAI_API_KEY=... satırını doldur
+```
+
 ## Hızlı başlangıç
 
 ```bash
 autosell panel            # http://127.0.0.1:8000 adresinde paneli açar
 ```
 
-1. **Ayarlar → Yapay Zekâ:** Claude API anahtarını gir ya da OpenAI uyumlu sağlayıcıyı seç. "Bağlantıyı test et" ile dene.
+1. **Ayarlar → Yapay Zekâ:** OpenAI uyumlu sağlayıcı hazır gelir (`https://betaapiv2.llmapi.art/v1`, model `muse-spark-1.3`). API anahtarını gir ve "Bağlantıyı test et" ile dene. İstersen modeli listeden değiştir ya da Claude'a geç.
 2. **Ayarlar → Satıcı Profili:** il, ilçe ve mahalleyi gir; ilan formundaki adres alanları buradan doldurulur. Takas, pazarlık ve teslimat tercihlerini de burada seç.
 3. **Ayarlar → Platformlar → Giriş yap:** Açılan tarayıcı penceresinde Sahibinden ve Letgo hesaplarına bir kez giriş yap. Oturum `veri/tarayici/` altında saklanır.
 4. **Yeni İlan:** Fotoğrafları yükle, kısa notunu ve fiyatı yaz, sonra **"✨ Yapay zekâ ile ilan oluştur"** düğmesine bas.
@@ -131,8 +138,8 @@ Sitelerin HTML yapısı sık değiştiği için AutoSell sabit CSS seçicilerine
 
 | Sağlayıcı | Ayar | Not |
 |---|---|---|
-| **Claude** (varsayılan) | Model `claude-opus-5-5`, efor `high` | Resmi `anthropic` SDK'sı; yapılandırılmış çıktı, görsel analiz, web araştırması. Güvenlik sınıflandırıcısı reddederse Anthropic'in önerdiği modelle sunucu tarafında yeniden dener (`fallbacks: "default"`; Ayarlar'dan kapatılabilir). Anahtar: panel ya da `ANTHROPIC_API_KEY`. |
-| **OpenAI uyumlu** | Base URL + model + anahtar | Resmi `openai` SDK'sı. OpenAI, OpenRouter (`https://openrouter.ai/api/v1`), Groq, DeepSeek, Ollama (`http://localhost:11434/v1`), LM Studio (`http://localhost:1234/v1`)… Sunucu `json_schema`'yı desteklemiyorsa `json_object`'e, o da yoksa serbest metinden JSON ayıklamaya düşer. Görsel desteklemeyen modellerde fotoğraflar otomatik çıkarılır. |
+| **OpenAI uyumlu** (varsayılan) | Base URL `https://betaapiv2.llmapi.art/v1`, model `muse-spark-1.3` | Resmi `openai` SDK'sı. OpenAI, OpenRouter (`https://openrouter.ai/api/v1`), Groq, DeepSeek, Ollama (`http://localhost:11434/v1`), LM Studio (`http://localhost:1234/v1`) de kullanılabilir. Sunucu `json_schema`'yı desteklemiyorsa `json_object`'e, o da yoksa serbest metinden JSON ayıklamaya düşer. Görsel desteklemeyen modellerde fotoğraflar otomatik çıkarılır. Model adı sunucudaki kimlikle birebir değilse ("muse spark 1.3" gibi) sunucunun model listesinden en yakın olan seçilir. Adres `/v1` ile bitmiyorsa bir kez `/v1` eklenerek denenir. Anahtar: panel ya da `OPENAI_API_KEY`. |
+| **Claude** | Model `claude-opus-5-5`, efor `high` | Resmi `anthropic` SDK'sı; yapılandırılmış çıktı, görsel analiz, web araştırması. Güvenlik sınıflandırıcısı reddederse Anthropic'in önerdiği modelle sunucu tarafında yeniden dener (`fallbacks: "default"`; Ayarlar'dan kapatılabilir). Anahtar: panel ya da `ANTHROPIC_API_KEY`. |
 
 Yerel ve küçük modellerde başlık/açıklama kalitesi düşebilir. Görsel analiz için görsel destekli bir model (ör. `llama3.2-vision`, `qwen2.5-vl`) seç.
 
@@ -169,7 +176,9 @@ urunler/
   - `ilanlar/<id>/`: yüklenen fotoğraflar (EXIF ve GPS bilgisi silinerek kaydedilir)
   - `tarayici/<platform>/`: tarayıcı oturumları. **Bu klasörü kimseyle paylaşma.**
   - `ekran/`: yayın öncesi/sonrası ve hata ekran görüntüleri
-- Ortam değişkenleri: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `AUTOSELL_PANEL_PASSWORD`. Ayar dosyasında boş bırakılan gizli alanlar bunlardan okunur.
+- Ortam değişkenleri (`.env` dosyası da okunur):
+  - Gizli alanlar: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `AUTOSELL_PANEL_PASSWORD`. Ayar dosyasında boş bırakılan gizli alanlar bunlardan okunur.
+  - Varsayılanlar: `AUTOSELL_AI_PROVIDER`, `OPENAI_BASE_URL`, `AUTOSELL_OPENAI_MODEL`, `AUTOSELL_CLAUDE_MODEL`. Panelden kaydedilen ayarlar bunların önüne geçer.
 - **Site değişirse:** Ayarlar → Platformlar → Gelişmiş bölümünden ilan verme adresi, arama adresi şablonu, ilan bağlantısı kalıpları ve arama sonucu kart seçicileri kod değiştirmeden güncellenebilir.
 - **Tarayıcı:** `headless` (görünmez mod), `channel: "chrome"` (bilgisayarda kurulu Chrome'u kullan), eylemler arası bekleme süreleri ve kullanıcı müdahalesi zaman aşımı ayarlanabilir.
 

@@ -39,11 +39,56 @@ class OpenAICompatProvider(LLMProvider):
     ):
         if not model:
             raise AINotConfigured("OpenAI uyumlu sağlayıcı için model adı girilmemiş.")
-        self.model = model
+        self.model = model.strip()
         self.vision = vision
         self.supports_images = vision
-        key = api_key or os.environ.get("OPENAI_API_KEY") or "yerel-anahtar"
-        self.client = client or openai.OpenAI(api_key=key, base_url=base_url or None)
+        self.base_url = (base_url or "").strip().rstrip("/")
+        self._api_key = api_key or os.environ.get("OPENAI_API_KEY") or "yerel-anahtar"
+        self._injected = client is not None
+        self.client = client or openai.OpenAI(api_key=self._api_key, base_url=self.base_url or None)
+        self._model_resolved = False
+        self._base_retried = False
+
+    # --------------------------------------------------------- model / adres
+
+    def list_models(self) -> list[str]:
+        try:
+            return sorted(m.id for m in self.client.models.list())
+        except openai.AuthenticationError as exc:
+            raise AINotConfigured("API anahtarı geçersiz ya da eksik.") from exc
+        except openai.APIConnectionError as exc:
+            raise AIError("OpenAI uyumlu API'ye bağlanılamadı (base URL doğru mu?).") from exc
+        except openai.APIStatusError as exc:
+            raise AIError(f"Model listesi alınamadı ({exc.status_code}).") from exc
+
+    def _try_resolve_model(self) -> bool:
+        """Model adı sunucudaki kimlikle birebir değilse ("muse spark 1.3" → "muse-spark-1.3")
+        sunucunun model listesinden en yakın olanı seçer."""
+        if self._model_resolved:
+            return False
+        self._model_resolved = True
+        try:
+            ids = self.list_models()
+        except AIError:
+            return False
+        from ..textutil import best_match
+
+        idx, score = best_match(self.model, ids)
+        if idx >= 0 and score >= 0.75 and ids[idx] != self.model:
+            log.warning("Model adı '%s' sunucuda '%s' olarak bulundu.", self.model, ids[idx])
+            self.model = ids[idx]
+            return True
+        return False
+
+    def _try_alternate_base(self) -> bool:
+        """Adres /v1 ile bitmiyorsa bir kez /v1 ekleyerek dener."""
+        if self._base_retried or self._injected or not self.base_url or self.base_url.endswith("/v1"):
+            return False
+        self._base_retried = True
+        self.base_url = self.base_url + "/v1"
+        self.client = openai.OpenAI(api_key=self._api_key, base_url=self.base_url)
+        log.warning("Uç nokta bulunamadı; '%s' deneniyor.", self.base_url)
+        return True
 
     def _messages(
         self, system: str, prompt: str, schema: dict[str, Any], images: Sequence[ImageInput], mode: str
@@ -109,6 +154,11 @@ class OpenAICompatProvider(LLMProvider):
                         log.warning("Model görsel kabul etmiyor; fotoğraflar olmadan deneniyor.")
                         use_images = []
                         continue
+                    if "model" in msg and any(w in msg for w in ("not found", "does not exist", "invalid model",
+                                                                   "no available", "unknown model", "not exist")):
+                        if self._try_resolve_model():
+                            continue
+                        raise AINotConfigured(f"Model bulunamadı: {self.model}. Ayarlar'dan model adını kontrol edin.") from exc
                     break  # bir sonraki kipe geç
                 except openai.AuthenticationError as exc:
                     raise AINotConfigured(
@@ -117,6 +167,8 @@ class OpenAICompatProvider(LLMProvider):
                 except openai.PermissionDeniedError as exc:
                     raise AINotConfigured(f"OpenAI uyumlu API erişim izni yok: {exc}") from exc
                 except openai.NotFoundError as exc:
+                    if self._try_alternate_base() or self._try_resolve_model():
+                        continue
                     raise AINotConfigured(f"Model ya da uç nokta bulunamadı ({self.model}).") from exc
                 except openai.RateLimitError as exc:
                     raise AIError("API hız/kota sınırına takıldı; biraz sonra tekrar deneyin.") from exc

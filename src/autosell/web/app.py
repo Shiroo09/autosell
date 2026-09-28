@@ -200,6 +200,15 @@ def create_app(app_service: AutoSell | None = None) -> FastAPI:
         except AIError as exc:
             raise HTTPException(400, str(exc)) from exc
 
+    @api.get("/api/settings/models")
+    def list_models() -> dict[str, Any]:
+        try:
+            provider = service.provider()
+            assert provider is not None
+            return {"provider": provider.name, "current": provider.model, "models": provider.list_models()}
+        except AIError as exc:
+            raise HTTPException(400, str(exc)) from exc
+
     @api.post("/api/settings/test-telegram")
     def test_telegram() -> dict[str, Any]:
         ok, detail = service.test_telegram()

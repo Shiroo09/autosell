@@ -190,3 +190,27 @@ def test_extract_json_and_conform():
     enum_schema = {"type": "object", "properties": {"durum": {"type": "string", "enum": ["Çok İyi", "İyi"]}}}
     assert conform({"durum": "ÇOK İYİ"}, enum_schema)["durum"] == "Çok İyi"
     assert conform({"durum": "harika"}, enum_schema)["durum"] is None
+
+
+def test_openai_resolves_model_name_from_server_list():
+    err = openai.NotFoundError(
+        "The model `muse spark 1.3` does not exist",
+        response=httpx2.Response(404, request=httpx2.Request("POST", "https://x/v1/chat/completions")),
+        body=None,
+    )
+    fake = _FakeOpenAI(err, _completion('{"a": "ok", "n": 1}'))
+    fake.models = SimpleNamespace(list=lambda: [SimpleNamespace(id="gpt-4o-mini"), SimpleNamespace(id="muse-spark-1.3")])
+    provider = OpenAICompatProvider(model="muse spark 1.3", base_url="https://x/v1", client=fake)
+    assert provider.generate_json(system="s", prompt="p", schema=SCHEMA)["a"] == "ok"
+    assert provider.model == "muse-spark-1.3" and fake.calls[1]["model"] == "muse-spark-1.3"
+
+
+def test_settings_env_defaults(tmp_path, monkeypatch):
+    from autosell.config import SettingsStore
+
+    monkeypatch.setenv("AUTOSELL_AI_PROVIDER", "claude")
+    monkeypatch.setenv("AUTOSELL_OPENAI_MODEL", "baska-model")
+    store = SettingsStore(tmp_path / "ayarlar.json")
+    assert store.get().ai.provider == "claude" and store.get().ai.openai_model == "baska-model"
+    store.update({"ai": {"provider": "openai"}})  # panelden kaydedilen değer ortamın önüne geçer
+    assert store.get().ai.provider == "openai"

@@ -43,6 +43,18 @@ class AnthropicProvider(LLMProvider):
         # Anahtar verilmezse SDK ANTHROPIC_API_KEY / `ant auth login` profilini kullanır.
         self.client = client or (anthropic.Anthropic(api_key=api_key) if api_key else anthropic.Anthropic())
 
+    def list_models(self) -> list[str]:
+        try:
+            return sorted(m.id for m in self.client.models.list())
+        except anthropic.AuthenticationError as exc:
+            raise AINotConfigured("Claude API anahtarı geçersiz ya da tanımlı değil.") from exc
+        except anthropic.APIConnectionError as exc:
+            raise AIError("Claude API'ye bağlanılamadı.") from exc
+        except anthropic.APIStatusError as exc:
+            raise AIError(f"Model listesi alınamadı ({exc.status_code}).") from exc
+        except TypeError as exc:
+            raise AINotConfigured("Claude API anahtarı tanımlı değil.") from exc
+
     def generate_json(
         self,
         *,

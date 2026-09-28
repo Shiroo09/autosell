@@ -33,16 +33,20 @@ SECRET_FIELDS: tuple[tuple[str, str], ...] = (
 MASK_PREFIX = "••••"
 
 
+DEFAULT_OPENAI_BASE_URL = "https://betaapiv2.llmapi.art/v1"
+DEFAULT_OPENAI_MODEL = "muse-spark-1.3"
+
+
 class AISettings(BaseModel):
-    provider: Literal["claude", "openai"] = "claude"
+    provider: Literal["claude", "openai"] = "openai"
     claude_model: str = DEFAULT_CLAUDE_MODEL
     claude_effort: Literal["low", "medium", "high", "xhigh", "max"] = "high"
     claude_api_key: str = ""
     # Güvenlik sınıflandırıcısı isteği reddederse Anthropic'in önerdiği modelle
     # sunucu tarafında yeniden dene (server-side fallback).
     claude_fallback: bool = True
-    openai_base_url: str = "https://api.openai.com/v1"
-    openai_model: str = "gpt-5-mini"
+    openai_base_url: str = DEFAULT_OPENAI_BASE_URL
+    openai_model: str = DEFAULT_OPENAI_MODEL
     openai_api_key: str = ""
     openai_vision: bool = True
     max_photos: int = 6
@@ -248,6 +252,25 @@ def resolve_paths(data_dir: str | os.PathLike[str] | None = None) -> Paths:
     return Paths(Path(raw).expanduser().resolve()).ensure()
 
 
+# Ortam değişkenleri kod varsayılanlarının üzerine yazar; panelden kaydedilen ayarlar ise
+# ortam değişkenlerinin de üzerine yazar (dosya > ortam > kod).
+ENV_DEFAULTS: tuple[tuple[str, str, str], ...] = (
+    ("AUTOSELL_AI_PROVIDER", "ai", "provider"),
+    ("OPENAI_BASE_URL", "ai", "openai_base_url"),
+    ("AUTOSELL_OPENAI_MODEL", "ai", "openai_model"),
+    ("AUTOSELL_CLAUDE_MODEL", "ai", "claude_model"),
+)
+
+
+def env_defaults() -> dict[str, Any]:
+    out: dict[str, Any] = {}
+    for env, section, field in ENV_DEFAULTS:
+        value = os.environ.get(env, "").strip()
+        if value:
+            out.setdefault(section, {})[field] = value
+    return out
+
+
 def deep_merge(base: dict[str, Any], patch: dict[str, Any]) -> dict[str, Any]:
     out = copy.deepcopy(base)
     for key, value in patch.items():
@@ -282,13 +305,14 @@ class SettingsStore:
             return self._cached.model_copy(deep=True)
 
     def _load(self) -> Settings:
+        base = deep_merge(Settings().model_dump(), env_defaults())
         if not self.path.exists():
-            return Settings()
+            return Settings.model_validate(base)
         try:
             data = json.loads(self.path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
             raise RuntimeError(f"Ayar dosyası okunamadı ({self.path}): {exc}") from exc
-        return Settings.model_validate(deep_merge(Settings().model_dump(), data))
+        return Settings.model_validate(deep_merge(base, data))
 
     def save(self, settings: Settings) -> Settings:
         with self._lock:

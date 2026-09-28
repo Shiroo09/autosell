@@ -49,6 +49,10 @@ class LLMProvider(ABC):
     def describe(self) -> str:
         return f"{self.name}:{self.model}"
 
+    def list_models(self) -> list[str]:
+        """Sağlayıcının sunduğu model kimlikleri (desteklenmiyorsa boş liste)."""
+        return []
+
 
 _FENCE_RE = re.compile(r"```(?:json)?\s*(.*?)```", re.DOTALL | re.IGNORECASE)
 

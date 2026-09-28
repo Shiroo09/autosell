@@ -317,6 +317,12 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    try:  # çalışma klasöründeki .env dosyasını oku (API anahtarları vb.; git'e eklenmez)
+        from dotenv import load_dotenv
+
+        load_dotenv(Path.cwd() / ".env")
+    except ImportError:  # pragma: no cover
+        pass
     parser = build_parser()
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO if args.ayrintili else logging.WARNING,
