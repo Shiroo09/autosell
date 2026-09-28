@@ -11,7 +11,9 @@ const open = new Map(); // platform → kontrol
  * @param {{onAnswer?: (value:boolean)=>Promise<void>, subscribe?: (fn:(jobs:object[])=>void)=>Function}} opts
  */
 export function openRemoteControl(job, opts = {}) {
-  const platform = job && job.platform;
+  // İşin tarayıcı profili: ilan verme hesabın profilinde ("letgo"), tarama ise hesaptan
+  // ayrı, girişsiz profilde ("letgo-tarama") yürür; kontrol doğru pencereye bağlanmalı.
+  const platform = job && (job.browser || job.platform);
   if (!platform) {
     toast.error('Bu iş bir tarayıcıya bağlı değil.');
     return null;
@@ -29,7 +31,7 @@ export function openRemoteControl(job, opts = {}) {
 
   const sheet = openSheet({
     title: 'Tarayıcıyı buradan kontrol et',
-    subtitle: `${platformName(platform)} · ${job.title || ''}`,
+    subtitle: `${platformName(job.platform || platform)}${job.browser && job.browser !== job.platform ? ' (tarama tarayıcısı)' : ''} · ${job.title || ''}`,
     icon: 'phone',
     size: 'remote',
     className: 'remote-sheet',

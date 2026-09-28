@@ -12,6 +12,7 @@ from PIL import Image, ImageDraw
 from .ai.base import ImageInput, LLMProvider
 from .listing import ListingGenerator
 from .market.deals import evaluate_deal
+from .market.fastcheck import apply_decision
 from .market.pricing import estimate_market
 from .models import ScrapedListing, Watch
 from .service import AutoSell
@@ -126,6 +127,20 @@ DEMO_MARKET = [
 ]
 
 
+def _demo_decision(title: str) -> dict:
+    """Demo için hızlı karar motoru (Jev / Laya) cevabı taklidi."""
+    words = title.lower().split()
+    kind = "aksesuar_parca" if any(w.startswith("kılıf") for w in words) else "urun"
+    same = 0.12 if ("pro" in words or "256" in words) else 0.96
+    shady = 0.93 if "kapora" in words else 0.06
+    return {
+        "ilan_turu": {"type": "choice", "choice": kind, "probabilities": {kind: 0.98}},
+        "ayni_urun": {"type": "noul", "noul": same},
+        "kusurlu": {"type": "noul", "noul": 0.04},
+        "supheli": {"type": "noul", "noul": shady},
+    }
+
+
 def seed_demo(app: AutoSell) -> None:
     """Boş veritabanına örnek taslak, takip listesi ve fırsatlar ekler."""
     if app.db.list_drafts() or app.db.list_watches():
@@ -176,6 +191,7 @@ def seed_demo(app: AutoSell) -> None:
         est = estimate_market(listing.title, comps, exclude_id=listing.id)
         deal = evaluate_deal(listing, est, settings.market, watch)
         if deal.comps_count:
+            apply_decision(deal, _demo_decision(listing.title), engine="jev")
             if deal.is_deal:
                 deal.ai = DemoProvider().generate_json(system="", prompt="", schema={"properties": {"firsat_mi": {}}})
             app.db.save_deal(deal)

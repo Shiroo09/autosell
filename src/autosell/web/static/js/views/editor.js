@@ -941,14 +941,16 @@ export async function mount(root, ctx) {
       if (!ok) return;
     }
     const pub = draft.publications[p];
+    let force = false;
     if (pub && pub.status === 'yayinda') {
       const ok = await confirmDialog({
         title: 'İlan zaten yayında',
-        message: `Bu ilan ${locative(name)} zaten yayında. Tekrar yayınlamak sitede ikinci bir ilan oluşturabilir. Devam edilsin mi?`,
+        message: `Bu ilan ${locative(name)} zaten yayında. Tekrar yayınlamak sitede ikinci bir ilan oluşturabilir ve mükerrer ilan sayılabilir. Devam edilsin mi?`,
         confirmText: 'Yine de yayınla',
         danger: true,
       });
       if (!ok) return;
+      force = true;
     }
     if (isDirty()) {
       const saved = await save({ quiet: true });
@@ -957,7 +959,23 @@ export async function mount(root, ctx) {
     }
     await withBusy(btn, 'Başlatılıyor…', async () => {
       try {
-        const job = await api.post(`/api/drafts/${enc(id)}/publish`, { platform: p });
+        let job;
+        try {
+          job = await api.post(`/api/drafts/${enc(id)}/publish`, { platform: p, force });
+        } catch (e) {
+          // Hesap güvenliği: mükerrer ilan uyarısı onayla geçilebilir; günlük sınır ve bekleme süresi geçilemez.
+          const code = e && e.status === 409 && e.data ? e.data.code : null;
+          if (code !== 'duplicate' && code !== 'already_published') throw e;
+          const ok = await confirmDialog({
+            title: code === 'duplicate' ? 'Mükerrer ilan riski' : 'İlan zaten yayında',
+            message: `${e.message} Farklı bir ürünse devam edebilirsiniz.`,
+            confirmText: 'Yine de yayınla',
+            danger: true,
+            icon: 'alert',
+          });
+          if (!ok) return;
+          job = await api.post(`/api/drafts/${enc(id)}/publish`, { platform: p, force: true });
+        }
         trackJob(job);
         activePublish.set(p, job);
         attachJob(job);

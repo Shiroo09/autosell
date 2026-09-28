@@ -12,6 +12,40 @@ function metric(label, value, { tone = '', sub = '' } = {}) {
   return html`<div class="metric ${tone}"><span class="metric-label">${label}</span><strong class="metric-value">${value}</strong>${sub ? html`<span class="metric-sub">${sub}</span>` : ''}</div>`;
 }
 
+const FAST_KIND = {
+  urun: ['Ürünün kendisi', 'is-pos'],
+  aksesuar_parca: ['Aksesuar / yedek parça', 'is-neg'],
+  alim_takas: ['Alım ya da takas ilanı', 'is-neg'],
+  diger: ['Başka bir şey', 'is-neg'],
+};
+
+function pctOf(v) {
+  return isNum(v) ? `%${Math.round(v * 100)}` : '—';
+}
+
+/** Hızlı karar motoru (Jev / Laya) sonucu. */
+function fastCard(fast) {
+  if (!fast || !fast.ilan_turu) return '';
+  const [kind, tone] = FAST_KIND[fast.ilan_turu] || [fast.ilan_turu, ''];
+  const motor = { jev: 'Jev', laya: 'Laya' }[fast.motor] || fast.motor || '';
+  return html`
+    <section class="card" aria-labelledby="fast-t">
+      <header class="card-head">
+        <h2 class="card-title" id="fast-t">${icon('zap', { size: 18 })}Hızlı kontrol${motor ? html` <span class="muted">(${motor})</span>` : ''}</h2>
+        <span class="head-actions">${fast.elendi ? html`<span class="chip chip-danger">${icon('x', { size: 13 })}Elendi</span>` : html`<span class="chip chip-success">${icon('check', { size: 13 })}Temiz</span>`}</span>
+      </header>
+      <div class="card-body fast-box">
+        <div class="fast-grid">
+          ${metric('Satılan', kind, { tone })}
+          ${metric('Emsallerle aynı ürün', pctOf(fast.ayni_urun), { sub: 'olasılık', tone: isNum(fast.ayni_urun) && fast.ayni_urun < 0.4 ? 'is-neg' : '' })}
+          ${metric('Arıza / hasar / kilit', pctOf(fast.kusurlu), { sub: 'olasılık', tone: isNum(fast.kusurlu) && fast.kusurlu >= 0.6 ? 'is-neg' : '' })}
+          ${metric('Kapora / kayıt dışı', pctOf(fast.supheli), { sub: 'olasılık', tone: isNum(fast.supheli) && fast.supheli >= 0.6 ? 'is-neg' : '' })}
+        </div>
+        <p class="muted small">Karar motoru ilanı saniyeler içinde inceledi; metin yazmaz, yalnızca olasılık verir.</p>
+      </div>
+    </section>`;
+}
+
 export async function mount(root, ctx) {
   const id = Number(ctx.params[0]);
   let data = null;
@@ -141,6 +175,7 @@ export async function mount(root, ctx) {
         </div>
 
         <div class="stack-lg">
+          ${fastCard(deal.fast)}
           <section class="card" aria-labelledby="why-t">
             <header class="card-head"><h2 class="card-title" id="why-t">${icon('bulb', { size: 18 })}Neden fırsat?</h2></header>
             <div class="card-body">

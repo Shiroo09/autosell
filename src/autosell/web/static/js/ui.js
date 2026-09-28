@@ -329,8 +329,8 @@ export const pubInfo = (status) => PUB[status] || PUB.none;
 export function pubChip(platform, pub, { withName = true } = {}) {
   const info = pubInfo(pub && pub.status);
   return html`
-    <span class="chip chip-${info.tone}" title="${pub && pub.message ? pub.message : ''}">
-      ${withName ? html`<i class="pdot pdot-${platform}" aria-hidden="true"></i><span class="chip-name">${platformName(platform)}</span><span class="chip-sep" aria-hidden="true">·</span>` : ''}
+    <span class="chip chip-${info.tone}" title="${platformName(platform)}${pub && pub.message ? `: ${pub.message}` : ''}">
+      ${withName ? html`<i class="pdot pdot-${platform}" aria-hidden="true"></i><span class="chip-name">${platformName(platform)}</span><span class="chip-sep" aria-hidden="true">·</span>` : html`<i class="pdot pdot-${platform}" aria-hidden="true"></i><span class="sr-only">${platformName(platform)}: </span>`}
       ${pub && pub.status === 'calisiyor' ? spinner(10) : info.icon ? icon(info.icon, { size: 13, strokeWidth: 2.2 }) : ''}
       <span>${info.label}</span>
     </span>`;

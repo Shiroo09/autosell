@@ -66,6 +66,11 @@ const platformFields = (p) => [
     { key: 'description_max', type: 'number', label: 'Açıklama sınırı', min: 200, max: 20000, int: true, suffix: 'karakter' },
   ] },
   { key: 'use_emoji', type: 'switch', label: 'Başlık ve açıklamada emoji kullan', hint: p === 'sahibinden' ? 'Sahibinden emojiye genellikle izin vermez.' : '' },
+  { row: [
+    { key: 'max_publish_per_day', type: 'number', label: 'Günde en fazla ilan', min: 0, max: 100, int: true, hint: 'Hesap güvenliği: son 24 saatte bundan fazla ilan verilmez (0 = sınırsız).' },
+    { key: 'min_minutes_between_publish', type: 'number', label: 'İki ilan arası en az', min: 0, max: 1440, int: true, suffix: 'dk' },
+  ] },
+  { key: 'duplicate_days', type: 'number', label: 'Mükerrer ilan koruması', min: 1, max: 365, int: true, suffix: 'gün', hint: 'Bu süre içinde aynı ya da çok benzer bir ilan tekrar verilmek istenirse uyarılır.' },
   { advanced: [
     { key: 'home_url', type: 'text', label: 'Ana sayfa', mono: true, inputmode: 'url' },
     { key: 'login_url', type: 'text', label: 'Giriş sayfası', mono: true, inputmode: 'url' },
@@ -108,16 +113,43 @@ const MARKET_FIELDS = [
     { key: 'min_comps', type: 'number', label: 'En az emsal sayısı', min: 1, max: 50, int: true, hint: 'Daha az emsalde fırsat sayılmaz.' },
     { key: 'comp_days', type: 'number', label: 'Emsal geçerlilik süresi', min: 1, max: 365, int: true, suffix: 'gün' },
   ] },
+  { row: [
+    { key: 'default_interval_min', type: 'number', label: 'Varsayılan tarama aralığı', min: 1, int: true, suffix: 'dk', hint: 'Yeni takip listelerinin tarama sıklığı.' },
+    { key: 'min_interval_min', type: 'number', label: 'En kısa tarama aralığı', min: 1, int: true, suffix: 'dk' },
+  ] },
+  { row: [
+    { key: 'hourly_request_budget', type: 'number', label: 'Saatlik istek sınırı', min: 0, max: 600, int: true, suffix: 'sayfa', hint: 'Platform başına bir saatte siteye gidebilecek en fazla sayfa (arama + detay). İnsan hızını aşmamak için 60 önerilir; 0 = sınırsız (önerilmez).' },
+    { key: 'block_cooldown_min', type: 'number', label: 'Engelde duraklatma', min: 5, max: 1440, int: true, suffix: 'dk', hint: 'Site CAPTCHA ya da erişim engeli gösterirse o platformun taraması bu kadar durur.' },
+  ] },
+  { key: 'block_images', type: 'switch', label: 'Taramada resim ve video indirme', hint: 'Tarama tarayıcısı (hesabınızdan ayrı, girişsiz) resimsiz çalışır; sayfalar çok daha hızlı açılır.' },
   { advanced: [
     { row: [
-      { key: 'default_interval_min', type: 'number', label: 'Varsayılan tarama aralığı', min: 1, int: true, suffix: 'dk' },
-      { key: 'min_interval_min', type: 'number', label: 'En kısa tarama aralığı', min: 1, int: true, suffix: 'dk' },
+      { key: 'max_pages', type: 'number', label: 'Derin taramada sayfa', min: 1, max: 10, int: true },
+      { key: 'quick_pages', type: 'number', label: 'Hızlı taramada sayfa', min: 1, max: 5, int: true, hint: 'Derin taramalar arasında en yeniye sıralı bu kadar sayfa okunur; sayfanın tamamı yeni ilansa bir sonrakine geçilir.' },
     ] },
     { row: [
-      { key: 'max_pages', type: 'number', label: 'Taranacak sayfa sayısı', min: 1, max: 10, int: true },
-      { key: 'fetch_details', type: 'number', label: 'Detayı okunacak aday', min: 0, max: 20, int: true, hint: 'Her taramada açıklaması okunacak en iyi aday sayısı.' },
+      { key: 'deep_scan_hours', type: 'number', label: 'Derin tarama aralığı', min: 0, max: 168, step: 0.5, suffix: 'saat' },
+      { key: 'interval_jitter_pct', type: 'number', label: 'Aralık rastgeleliği', min: 0, max: 50, int: true, suffix: '%', hint: 'Taramalar tam dakikasında değil, bu oranda ileri-geri kaydırılarak yapılır.' },
     ] },
-    { key: 'ai_evaluations', type: 'number', label: 'Yapay zekâ değerlendirmesi', min: 0, max: 20, int: true, hint: 'Her taramada yapay zekâya sorulacak en iyi fırsat sayısı.' },
+    { row: [
+      { key: 'fetch_details', type: 'number', label: 'Detayı okunacak aday', min: 0, max: 20, int: true, hint: 'Her taramada açıklaması okunacak en iyi aday sayısı.' },
+      { key: 'ai_evaluations', type: 'number', label: 'Yapay zekâ incelemesi', min: 0, max: 20, int: true, hint: 'Her taramadan sonra yapay zekâya sorulacak en iyi fırsat sayısı (bildirimi geciktirmez).' },
+    ] },
+  ] },
+];
+
+const decisionOn = (v) => v.engine !== 'kapali';
+const DECISION_FIELDS = [
+  { key: 'engine', type: 'segmented', label: 'Motor', rerender: true, options: [['jev', 'Jev (sunucu)'], ['laya', 'Laya (bilgisayarımda)'], ['kapali', 'Kapalı']], hint: 'Fırsat adaylarını saniyeler içinde süzer: yalnızca aksesuar/parça mı, emsallerle aynı model mi, arızalı ya da kilitli mi, kapora veya kayıt dışı şüphesi var mı? Metin yazmaz, yalnızca karar verir.' },
+  { key: 'base_url', type: 'text', label: 'Sunucu adresi', optional: true, mono: true, inputmode: 'url', placeholder: 'Boş: varsayılan', showIf: decisionOn, hint: 'Boşsa Jev için Yapay Zekâ bölümündeki sunucu, Laya için http://127.0.0.1:8000 kullanılır.' },
+  { key: 'api_key', type: 'secret', label: 'API anahtarı', secret: 'decision.api_key', env: 'LAYA_API_KEY', optional: true, showIf: decisionOn, placeholder: 'Boş: varsayılan', hint: 'Boşsa Jev için Yapay Zekâ bölümündeki anahtar kullanılır. Laya’yı LAYA_API_KEY ile başlattıysanız buraya girin.' },
+  { key: 'model', type: 'text', label: 'Model', optional: true, mono: true, placeholder: 'Jev: jev · Laya: multilingual', showIf: decisionOn },
+  { advanced: [
+    { row: [
+      { key: 'max_checks', type: 'number', label: 'Tarama başına en fazla aday', min: 0, max: 100, int: true },
+      { key: 'threshold', type: 'number', label: 'Eleme eşiği', min: 0.5, max: 0.99, step: 0.05, hint: 'Olumsuz kararın olasılığı bunu aşarsa ilan elenir.' },
+    ] },
+    { key: 'timeout_s', type: 'number', label: 'Zaman aşımı', min: 3, max: 120, step: 1, suffix: 'sn', hint: 'Motor bu sürede cevap vermezse tarama kural tabanlı puanlamayla devam eder.' },
   ] },
 ];
 
@@ -140,7 +172,8 @@ const SECTIONS = [
     { key: 'letgo', title: 'Letgo', fields: platformFields('letgo'), actions: ['login'] },
   ] },
   { id: 'browser', title: 'Tarayıcı', icon: 'browser', desc: 'Otomasyon tarayıcısı ve bekleme süreleri', units: [{ key: 'browser', fields: BROWSER_FIELDS }] },
-  { id: 'market', title: 'Fırsat Avcısı', icon: 'target', desc: 'Kâr hesabı, maliyetler ve tarama sınırları', units: [{ key: 'market', fields: MARKET_FIELDS }] },
+  { id: 'market', title: 'Fırsat Avcısı', icon: 'target', desc: 'Kâr hesabı, tarama hızı ve güvenli istek sınırları', units: [{ key: 'market', fields: MARKET_FIELDS }] },
+  { id: 'decision', title: 'Hızlı Karar Motoru', icon: 'zap', desc: 'Jev ya da Laya ile fırsat adaylarını saniyeler içinde süzme', units: [{ key: 'decision', fields: DECISION_FIELDS, actions: ['test-decision'] }] },
   { id: 'notify', title: 'Bildirimler', icon: 'bell', desc: 'Yeni fırsatlar için Telegram bildirimi', units: [{ key: 'notify', fields: NOTIFY_FIELDS, actions: ['test-telegram'] }] },
   { id: 'web', title: 'Panel Güvenliği', icon: 'lock', desc: 'Telefondan erişim için panel şifresi', units: [{ key: 'web', fields: WEB_FIELDS, actions: ['logout'] }] },
 ];
@@ -288,10 +321,12 @@ export async function mount(root, ctx) {
       <form class="set-unit ${isPlatform ? 'is-sub' : ''}" data-unit="${d.key}" novalidate>
         ${d.title ? html`<h3 class="set-unit-title"><i class="pdot pdot-${d.key}"></i>${d.title}</h3>` : ''}
         ${d.key === 'web' ? html`${callout({ tone: 'info', icon: 'phone', title: 'Telefondan erişim', text: html`Paneli aynı Wi-Fi ağındaki telefonunuzdan açmak için şifre gereklidir. Şifreyi belirledikten sonra AutoSell’i <code>autosell panel --host 0.0.0.0</code> ile başlatın ve telefonunuzdan bilgisayarın yerel IP adresine girin (ör. <code>http://192.168.1.20:8000</code>).` })}` : ''}
+        ${d.key === 'decision' && u.values.engine === 'laya' ? html`${callout({ tone: 'info', icon: 'monitor', title: 'Laya’yı bilgisayarınızda çalıştırma', text: html`Python 3.10+ ile <code>pip install "laya[serve]"</code> kurun, sonra <code>LAYA_MODELS=multilingual laya-serve</code> komutuyla başlatın (Windows: <code>set LAYA_MODELS=multilingual</code> ardından <code>laya-serve</code>). İlk açılışta model (~1,3 GB) indirilir; 8 GB RAM yeterlidir, ekran kartı şart değildir.` })}` : ''}
         <div class="stack">${fieldsHtml(u, d.fields)}</div>
         <div class="set-job" data-unit-job></div>
         <footer class="set-foot">
           ${(d.actions || []).includes('test-ai') ? html`<button type="button" class="btn" data-test-ai>${icon('zap', { size: 17 })}<span>Bağlantıyı test et</span></button>` : ''}
+          ${(d.actions || []).includes('test-decision') && u.values.engine !== 'kapali' ? html`<button type="button" class="btn" data-test-decision>${icon('zap', { size: 17 })}<span>Motoru test et</span></button>` : ''}
           ${(d.actions || []).includes('test-telegram') ? html`<button type="button" class="btn" data-test-telegram>${icon('send', { size: 17 })}<span>Test mesajı gönder</span></button>` : ''}
           ${(d.actions || []).includes('login') ? html`<button type="button" class="btn" data-login="${d.key}">${icon('key', { size: 17 })}<span>${platformName(d.key)} hesabına giriş yap</span></button>` : ''}
           ${(d.actions || []).includes('logout') && ((settings._secrets || {})['web.password'] || {}).set ? html`<button type="button" class="btn btn-ghost" data-logout>${icon('logout', { size: 17 })}<span>Çıkış yap</span></button>` : ''}
@@ -491,7 +526,7 @@ export async function mount(root, ctx) {
         if (!t.checked) return;
         u.values[f.key] = t.value;
       } else u.values[f.key] = t.value;
-      if (f.type === 'switch' && f.danger) {
+      if ((f.type === 'switch' && f.danger) || f.rerender) {
         renderUnit(u.def.key);
         updateFoot(u.def.key);
         return;
@@ -599,6 +634,10 @@ export async function mount(root, ctx) {
       testTelegram(t.closest('[data-test-telegram]'));
       return;
     }
+    if (t.closest('[data-test-decision]')) {
+      testDecision(t.closest('[data-test-decision]'));
+      return;
+    }
     const login = t.closest('[data-login]');
     if (login) {
       startLogin(login.dataset.login, login);
@@ -662,6 +701,21 @@ export async function mount(root, ctx) {
       toast.success(`Yanıt: “${r.answer || 'tamam'}”`, { title: `Bağlantı başarılı · ${r.provider}` });
     } catch (e) {
       toast.error(e.message || 'Bağlantı kurulamadı.', { title: 'Yapay zekâ testi başarısız' });
+    } finally {
+      if (b.isConnected) setBusy(b, false);
+    }
+  }
+
+  async function testDecision(btn) {
+    if (!(await ensureSaved('decision', 'test edilmeden'))) return;
+    const b = $('[data-test-decision]', root) || btn;
+    setBusy(b, true, 'Test ediliyor…');
+    try {
+      const r = await api.post('/api/settings/test-decision');
+      const verdict = r.correct ? 'örnek “kutu + şarj aleti” ilanını doğru olarak aksesuar saydı' : `örnek ilana “${r.answer}” dedi`;
+      toast.success(`${r.ms} ms’de cevap verdi; ${verdict}.`, { title: `Karar motoru çalışıyor · ${r.engine}` });
+    } catch (e) {
+      toast.error(e.message || 'Bağlantı kurulamadı.', { title: 'Karar motoru testi başarısız' });
     } finally {
       if (b.isConnected) setBusy(b, false);
     }

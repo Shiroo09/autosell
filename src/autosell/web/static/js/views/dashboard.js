@@ -2,7 +2,7 @@
 import { api, enc } from '../api.js';
 import { html, $, fmtNum, fmtPrice, fmtSignedPrice, fmtPct, timeAgo, safeUrl, platformName } from '../util.js';
 import { icon } from '../icons.js';
-import { callout, emptyState, errorState, scoreRing, pubChip, skeletonLines } from '../ui.js';
+import { callout, emptyState, errorState, scoreRing, pubChip, skeletonLines, confirmDialog, toast, showError } from '../ui.js';
 import { onJobsChange, statusChip, kindInfo, openJobsDrawer, remoteButton } from '../jobs.js';
 import { setStatus } from '../state.js';
 
@@ -110,6 +110,7 @@ export async function mount(root, ctx) {
           <ul class="mini-jobs" data-jobs></ul>
         </section>
         <section class="card card-pad" data-ai aria-label="Yapay zekâ durumu">${skeletonLines(2)}</section>
+        <section class="card" data-safety aria-label="Hız ve hesap güvenliği"></section>
       </aside>
     </div>`.s;
 
@@ -118,6 +119,7 @@ export async function mount(root, ctx) {
   const $deals = $('[data-deals]', root);
   const $drafts = $('[data-drafts]', root);
   const $ai = $('[data-ai]', root);
+  const $safety = $('[data-safety]', root);
   const $jobsCard = $('[data-jobs-card]', root);
   const $jobs = $('[data-jobs]', root);
 
@@ -126,7 +128,60 @@ export async function mount(root, ctx) {
     if (j) openJobsDrawer(j.dataset.openJob);
     if (e.target.closest('[data-all-jobs]')) openJobsDrawer();
     if (e.target.closest('[data-action="retry"]')) load();
+    const clr = e.target.closest('[data-clear-cooldown]');
+    if (clr) clearCooldown(clr.dataset.clearCooldown, clr);
   });
+
+  async function clearCooldown(platform, btn) {
+    const ok = await confirmDialog({
+      title: 'Duraklatma kaldırılsın mı?',
+      message: `${platformName(platform)} erişimi kısıtladığı için tarama duraklatılmıştı. Hemen tekrar taramak siteyi yeniden tetikleyebilir; emin değilseniz süresinin dolmasını bekleyin.`,
+      confirmText: 'Duraklatmayı kaldır',
+      danger: true,
+    });
+    if (!ok) return;
+    btn.disabled = true;
+    try {
+      await api.del(`/api/platforms/${enc(platform)}/cooldown`);
+      toast.success(`${platformName(platform)} taraması yeniden açıldı.`);
+      load();
+    } catch (e) {
+      btn.disabled = false;
+      showError(e);
+    }
+  }
+
+  function renderSafety(s) {
+    const budgets = s.budgets || {};
+    const cooldowns = s.cooldowns || {};
+    const dec = s.decision || {};
+    const engine = { jev: 'Jev', laya: 'Laya', kapali: 'Kapalı' }[dec.engine] || dec.engine || '—';
+    const platforms = Object.keys(s.platforms || budgets);
+    $safety.innerHTML = html`
+      <header class="card-head"><h2 class="card-title">${icon('shield', { size: 18 })}Hız ve hesap güvenliği</h2></header>
+      <div class="card-body stack">
+        <div class="safety-grid">
+          ${platforms.map((p) => {
+            const b = budgets[p] || { used: 0, limit: 0 };
+            const cd = cooldowns[p];
+            const pct = b.limit > 0 ? Math.min(100, Math.round((b.used / b.limit) * 100)) : 0;
+            return html`
+              <div class="safety-item ${cd ? 'is-paused' : ''}">
+                <div class="safety-top"><i class="pdot pdot-${p}" aria-hidden="true"></i>${platformName(p)}
+                  ${cd ? html`<span class="chip chip-warning chip-xs">Duraklatıldı</span>` : html`<span class="chip chip-success chip-xs">Tarama açık</span>`}</div>
+                ${b.limit > 0 ? html`
+                  <div class="meter ${pct >= 100 ? 'is-full' : pct >= 80 ? 'is-high' : ''}" role="meter" aria-label="Saatlik istek kullanımı" aria-valuemin="0" aria-valuemax="${b.limit}" aria-valuenow="${b.used}"><span style="width:${pct}%"></span></div>
+                  <span class="muted small">Son 1 saatte ${fmtNum(b.used)}/${fmtNum(b.limit)} sayfa${b.free_in_min ? ` · ${b.free_in_min} dk sonra açılır` : ''}</span>` : html`<span class="muted small">Saatlik istek sınırı kapalı</span>`}
+                ${cd ? html`
+                  <span class="small">${cd.reason} · ${cd.until_local} saatine kadar</span>
+                  <div><button type="button" class="btn btn-sm" data-clear-cooldown="${p}">Duraklatmayı kaldır</button></div>` : ''}
+              </div>`;
+          })}
+        </div>
+        <p class="muted small">${icon('zap', { size: 14 })} Hızlı karar motoru: <strong>${engine}</strong>${dec.engine && dec.engine !== 'kapali' ? (dec.ready ? ' · hazır' : ' · ayarlı değil') : ''} · <a href="#/ayarlar?b=decision">Ayarla</a></p>
+        <p class="muted small">Tarama hesabınızdan ayrı, girişsiz bir tarayıcıyla yapılır. İlan verme ise günlük sınır, bekleme süresi ve mükerrer ilan korumasıyla hesabınızdan yapılır.</p>
+      </div>`.s;
+  }
 
   ctx.scope.cleanup(onJobsChange((jobs) => {
     $jobsCard.hidden = !jobs.length;
@@ -163,6 +218,7 @@ export async function mount(root, ctx) {
         action: html`<a class="btn btn-sm" href="#/ayarlar?b=platforms">Ayarlar</a>`,
       }));
     }
+    renderSafety(s);
     $alerts.innerHTML = html`${alerts}`.s;
     $alerts.hidden = !alerts.length;
 

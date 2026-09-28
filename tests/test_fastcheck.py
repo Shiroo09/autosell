@@ -288,7 +288,7 @@ def test_request_budget_limits_scans(tmp_path):
     assert budget.take(now=now) and budget.take(2, now=now + 1)
     assert not budget.take(now=now + 2) and budget.left(now=now + 2) == 0
     assert budget.minutes_until(now=now + 2) == 60
-    assert budget.left(now=now + 3601) == 3
+    assert budget.left(now=now + 3700) == 3  # bir saat geçince haklar geri gelir
     assert RequestBudget(db, "sahibinden", 0).take(50)  # 0 = sınırsız
     db.close()
 

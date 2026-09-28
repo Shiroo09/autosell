@@ -46,6 +46,7 @@ export function dealCard({ deal, listing }) {
             <span class="profit-pill ${deal.est_profit > 0 ? 'is-pos' : 'is-neg'}">${icon(deal.est_profit > 0 ? 'trendUp' : 'trendDown', { size: 15 })}${fmtSignedPrice(deal.est_profit)}<span class="profit-label">tahmini kâr</span></span>
             <span class="margin">${fmtPct(deal.margin_pct)} marj</span>
             ${!deal.is_deal ? html`<span class="chip chip-xs">Aday</span>` : ''}
+            ${deal.fast && !deal.fast.elendi && deal.fast.ilan_turu ? html`<span class="chip chip-xs chip-fast" title="Hızlı karar motoru (${deal.fast.motor || ''}): aynı ürün, kusur ya da şüphe işareti yok">${icon('zap', { size: 11 })}Kontrol temiz</span>` : ''}
             ${deal.status === 'favori' ? html`<span class="chip chip-xs chip-warning">${icon('starFill', { size: 11 })}Favori</span>` : deal.status === 'incelendi' ? html`<span class="chip chip-xs">${icon('check', { size: 11 })}İncelendi</span>` : ''}
           </div>
           ${sortedRisks.length ? html`<div class="chips deal-risks">${sortedRisks.slice(0, 3).map(riskChip)}${sortedRisks.length > 3 ? html`<span class="chip chip-xs">+${sortedRisks.length - 3}</span>` : ''}</div>` : ''}
