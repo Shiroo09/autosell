@@ -112,6 +112,8 @@ class JobInteraction(Interaction):
     def confirm(self, question: str, page: Page, timeout_s: int, done: Callable[[], bool] | None = None) -> bool | None:
         self.job.response = None
         self._set_waiting(question, "confirm")
+        if self.remote is not None:
+            self.remote.activate(question)
         self.log(f"❓ {question} (panelden onaylayın ya da tarayıcıda kendiniz yayınlayın)")
         deadline = time.monotonic() + timeout_s
         try:
@@ -119,7 +121,7 @@ class JobInteraction(Interaction):
                 self.check_cancelled()
                 if self.job.response is not None:
                     return self.job.response
-                page.wait_for_timeout(700)
+                self._tick(page, 500)
                 if done:
                     try:
                         if done():
@@ -130,6 +132,8 @@ class JobInteraction(Interaction):
             self.log("Onay zaman aşımına uğradı.", "warning")
             return False
         finally:
+            if self.remote is not None:
+                self.remote.deactivate()
             self._clear_waiting()
 
 
@@ -159,6 +163,8 @@ class JobManager:
 
     def _run(self, job: Job, fn: JobFn, session: BrowserSession | None) -> Any:
         ui = JobInteraction(job)
+        if session is not None:
+            ui.remote = session.remote
         if job.cancel_requested:
             job.status = "cancelled"
             job.finished_at = now_iso()

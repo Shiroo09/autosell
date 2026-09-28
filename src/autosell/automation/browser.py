@@ -17,6 +17,7 @@ from typing import Any, Callable, TypeVar
 from playwright.sync_api import BrowserContext, Page, Playwright, sync_playwright
 
 from ..config import Settings
+from .remote import RemoteControl
 
 log = logging.getLogger(__name__)
 T = TypeVar("T")
@@ -25,8 +26,9 @@ T = TypeVar("T")
 class BrowserSession:
     """Bir tarayıcı bağlamı ve adlandırılmış sekmeleri."""
 
-    def __init__(self, context: BrowserContext):
+    def __init__(self, context: BrowserContext, remote: RemoteControl | None = None):
         self.context = context
+        self.remote = remote
         self._pages: dict[str, Page] = {}
 
     def page(self, name: str = "main", *, close_prefix: str | None = None) -> Page:
@@ -64,6 +66,7 @@ class BrowserWorker:
         self._started = False
         self._closed_flag = False
         self.current_label: str | None = None
+        self.remote = RemoteControl()
 
     @property
     def busy(self) -> bool:
@@ -130,7 +133,7 @@ class BrowserWorker:
                     pw = sync_playwright().start()
                 if context is None or self._closed_flag:
                     context = self._launch(pw)
-                    session = BrowserSession(context)
+                    session = BrowserSession(context, self.remote)
                 assert session is not None
                 future.set_result(fn(session))
             except BaseException as exc:  # noqa: BLE001 - hatayı çağırana ilet

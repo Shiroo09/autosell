@@ -14,6 +14,8 @@ from typing import Callable
 
 from playwright.sync_api import Page
 
+from .remote import RemoteControl
+
 
 class Cancelled(RuntimeError):
     """Kullanıcı işlemi iptal etti."""
@@ -24,8 +26,17 @@ class HumanTimeout(RuntimeError):
 
 
 class Interaction:
+    remote: RemoteControl | None = None
+
     def log(self, message: str, level: str = "info") -> None:
         print(message)
+
+    def _tick(self, page: Page, ms: int = 300) -> bool:
+        """Sayfayı canlı tutarak bekler; uzaktan kontrol varsa komutları uygular ve ekranı aktarır."""
+        page.wait_for_timeout(ms)
+        if self.remote is not None:
+            return self.remote.service(page)
+        return False
 
     def check_cancelled(self) -> None:
         return None
@@ -37,11 +48,20 @@ class Interaction:
         """Kullanıcı tarayıcıda gereken adımı (giriş, CAPTCHA, SMS kodu) yapana kadar bekler."""
         self.log(f"⏳ {reason}", "warning")
         self._set_waiting(reason, "human")
+        if self.remote is not None:
+            self.remote.activate(reason)
         deadline = time.monotonic() + timeout_s
+        next_check = 0.0
         try:
             while time.monotonic() < deadline:
                 self.check_cancelled()
-                page.wait_for_timeout(1500)
+                acted = self._tick(page)
+                now = time.monotonic()
+                if acted:
+                    next_check = now + 0.8  # uzaktan eylemden sonra sayfanın tepki vermesini bekle
+                if now < next_check:
+                    continue
+                next_check = now + 1.5
                 try:
                     if done():
                         self.log("✔ Devam ediliyor.")
@@ -50,6 +70,8 @@ class Interaction:
                     continue
             raise HumanTimeout(f"Zaman aşımı: {reason}")
         finally:
+            if self.remote is not None:
+                self.remote.deactivate()
             self._clear_waiting()
 
     def confirm(self, question: str, page: Page, timeout_s: int, done: Callable[[], bool] | None = None) -> bool | None:
@@ -83,7 +105,7 @@ class ConsoleInteraction(Interaction):
         thread.start()
         deadline = time.monotonic() + timeout_s
         while thread.is_alive() and time.monotonic() < deadline:
-            page.wait_for_timeout(700)
+            self._tick(page, 700)
             if done:
                 try:
                     if done():

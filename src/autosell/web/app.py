@@ -336,6 +336,35 @@ def create_app(app_service: AutoSell | None = None) -> FastAPI:
             raise HTTPException(403, "Geçersiz yol.")
         return FileResponse(path)
 
+    # ------------------------------------------------------------ uzaktan tarayıcı
+
+    def _remote(platform: str):  # type: ignore[no-untyped-def]
+        if platform not in PLATFORMS:
+            raise HTTPException(404, "Bilinmeyen platform")
+        return service.pool.worker(platform).remote
+
+    @api.get("/api/browser/{platform}/state")
+    def remote_state(platform: str) -> dict[str, Any]:
+        remote = _remote(platform)
+        remote.request_frame()
+        return remote.state()
+
+    @api.get("/api/browser/{platform}/screen")
+    def remote_screen(platform: str) -> Response:
+        remote = _remote(platform)
+        remote.request_frame()
+        if not remote.frame:
+            return Response(status_code=204)
+        return Response(remote.frame, media_type="image/jpeg", headers={"Cache-Control": "no-store"})
+
+    @api.post("/api/browser/{platform}/input")
+    def remote_input(platform: str, command: dict[str, Any] = Body(...)) -> dict[str, Any]:
+        remote = _remote(platform)
+        if not remote.active:
+            raise HTTPException(409, "Tarayıcı şu an kullanıcı girişi beklemiyor.")
+        remote.push(command)
+        return {"ok": True}
+
     # ------------------------------------------------------------ platformlar
 
     @api.post("/api/platforms/{platform}/login")

@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>AutoSell</title>
+  <meta name="description" content="Yapay zekâ destekli ilan asistanı ve al-sat fırsat avcısı (Sahibinden, Letgo)." />
+  <meta name="theme-color" content="#f4f5f8" />
+  <meta name="color-scheme" content="light dark" />
+  <meta name="format-detection" content="telephone=no" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="AutoSell" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="icon" href="/static/icon.svg" type="image/svg+xml" />
+  <link rel="icon" href="/static/icons/icon-192.png" type="image/png" sizes="192x192" />
+  <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png" />
+  <link rel="stylesheet" href="/static/css/app.css" />
+  <script>
+    // Temayı ilk boyamadan önce uygula (yanıp sönmeyi önler).
+    (function () {
+      var pref = 'system';
+      try { pref = JSON.parse(localStorage.getItem('autosell.theme') || '"system"'); } catch (e) {}
+      var dark = pref === 'dark' || (pref !== 'light' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
+      var r = document.documentElement;
+      r.setAttribute('data-theme', dark ? 'dark' : 'light');
+      var m = document.querySelector('meta[name="theme-color"]');
+      if (m) m.setAttribute('content', dark ? '#0f1115' : '#f4f5f8');
+    })();
+  </script>
+  <script type="module" src="/static/js/app.js"></script>
+</head>
+<body>
+  <div id="app">
+    <div class="splash" aria-busy="true"><span class="spinner" aria-hidden="true"></span><span class="sr-only">AutoSell yükleniyor…</span></div>
+  </div>
+  <div id="toasts" class="toasts" role="status" aria-live="polite"></div>
+  <noscript>
+    <div class="noscript">AutoSell paneli için tarayıcınızda JavaScript'in açık olması gerekir.</div>
+  </noscript>
+</body>
+</html>
