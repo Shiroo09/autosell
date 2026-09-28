@@ -70,6 +70,7 @@ class FlowState:
     agent_runs: int = 0
     human_waits: int = 0
     reopened: bool = False
+    confirmed: bool = False
 
 
 NOISE_EXACT = {"geri", "iptal", "vazgec", "kapat", "degistir", "tamam", "evet", "hayir", "kabul et", "reddet"}
@@ -388,6 +389,19 @@ class PlatformAdapter:
                 driver.set_checked(f, True)
                 self.log(f"☑ '{(f.option_text or f.label)[:70]}' işaretlendi.")
 
+    @staticmethod
+    def stuck_reason(snap: Snapshot) -> str:
+        names = [f.clean_label for f in snap.fields if f.error and not f.in_chrome]
+        names += [
+            f.clean_label for f in snap.fields
+            if not f.in_chrome and not f.disabled and f.looks_required and f.is_empty and classify(f) != "skip"
+        ]
+        names = [n for n in dict.fromkeys(names) if n][:6]
+        reason = "Otomasyon bu sayfada ilerleyemedi."
+        if names:
+            reason += " Doldurulması gereken alanlar: " + ", ".join(names) + "."
+        return reason
+
     def ask_human(self, driver: PageDriver, reason: str, state: FlowState) -> None:
         state.human_waits += 1
         if state.human_waits > 4:
@@ -423,7 +437,7 @@ class PlatformAdapter:
 
     def final_publish(self, driver: PageDriver, state: FlowState) -> None:
         shot = self.screenshot(driver, "yayin-oncesi")
-        if not self.ps.auto_publish:
+        if not self.ps.auto_publish and not state.confirmed:
             self.log("✅ İlan formu hazır. Tarayıcıda son kontrolü yapabilirsiniz.")
             answer = self.interaction.confirm(
                 f"{self.display_name} ilanı yayınlansın mı?",
@@ -436,6 +450,7 @@ class PlatformAdapter:
                 return
             if not answer:
                 raise PublishCancelled("Yayınlama kullanıcı tarafından iptal edildi.")
+            state.confirmed = True
         snap = driver.snapshot()
         if is_success(snap):
             state.publish_clicked = True
@@ -524,7 +539,7 @@ class PlatformAdapter:
             if same >= 2:
                 if not self.run_agent(driver, ctx, "İlan verme akışında bir sonraki adıma geç "
                                       "(son yayınla düğmesine basma).", state):
-                    self.ask_human(driver, "Otomasyon bu sayfada ilerleyemedi.", state)
+                    self.ask_human(driver, self.stuck_reason(snap), state)
                 same = 0
                 continue
 
@@ -560,6 +575,23 @@ class PlatformAdapter:
             publish_btn = self.find_publish(snap)
             if publish_btn and not state.publish_clicked:
                 self.final_publish(driver, state)
+                after = driver.snapshot()
+                errors = [f"{f.clean_label}: {f.error}" for f in after.fields if f.error][:6]
+                rejected = (
+                    not is_success(after) and self.is_promo(after) is None and self.find_publish(after) is not None
+                    and (errors or after.alerts)
+                )
+                if rejected:  # site formu kabul etmedi: eksikleri tamamla ve yeniden dene
+                    state.fix_attempts += 1
+                    self.log("⚠ Site uyarı verdi: " + ("; ".join(errors) or "; ".join(after.alerts[:3])))
+                    if state.fix_attempts <= 2:
+                        report.merge(filler.fill(ctx))
+                        state.publish_clicked = False
+                    elif self.run_agent(driver, ctx, "Formdaki hataları düzelt (son yayınla düğmesine basma).", state):
+                        state.publish_clicked = False
+                    else:
+                        self.ask_human(driver, "Formda düzeltilemeyen alanlar var: " + "; ".join(errors), state)
+                        state.publish_clicked = False
                 continue
             cont = self.find_continue(snap)
             if cont:
