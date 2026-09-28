@@ -264,6 +264,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="autosell", description="Sahibinden & Letgo ilan asistanı ve fırsat avcısı")
     parser.add_argument("--veri", help="Veri klasörü (varsayılan: ./veri veya AUTOSELL_DATA_DIR)")
     parser.add_argument("-v", "--ayrintili", action="store_true", help="Ayrıntılı günlük")
+    parser.add_argument("--demo", dest="demo_global", action="store_true",
+                        help="Gerçek yapay zekâ yerine örnek yanıtlar kullan (API anahtarı gerekmez)")
     parser.add_argument("--version", action="version", version=f"autosell {__version__}")
     sub = parser.add_subparsers(dest="komut", required=True)
 
@@ -320,6 +322,10 @@ def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO if args.ayrintili else logging.WARNING,
                         format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     app = AutoSell(args.veri)
+    if args.demo_global or getattr(args, "demo", False):
+        from .demo import DemoProvider
+
+        app.provider_override = DemoProvider()
     try:
         return int(args.func(app, args) or 0)
     except KeyError as exc:
