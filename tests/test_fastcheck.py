@@ -356,3 +356,54 @@ def test_decision_test_endpoint(tmp_path):
         assert r.status_code == 400 and "kapalı" in r.json()["detail"]
     finally:
         app.shutdown()
+
+
+def test_users_can_bring_their_own_decision_endpoint(tmp_path, monkeypatch):
+    """Kullanıcı kendi Jev/Laya sağlayıcısını (adres, anahtar, model) girebilir; yapay zekâ anahtarı
+    yalnızca aynı sunucuya gönderilir."""
+    for env in ("OPENAI_API_KEY", "AUTOSELL_DECISION_API_KEY", "LAYA_API_KEY"):
+        monkeypatch.delenv(env, raising=False)
+    s = Settings()
+    s.ai.openai_api_key = "sk-yapay-zeka"
+    assert s.decision_endpoint() == ("https://betaapiv2.llmapi.art/v1", "sk-yapay-zeka", "jev")  # varsayılan
+
+    s.decision.base_url, s.decision.model = "https://openrouter.ai/api/v1", "typesafe/jev-1.13"
+    assert s.decision_endpoint()[1] == ""  # yapay zekâ anahtarı OpenRouter'a gönderilmez
+    s.decision.api_key = "sk-or-kendi"
+    assert s.decision_endpoint() == ("https://openrouter.ai/api/v1", "sk-or-kendi", "typesafe/jev-1.13")
+
+    s.decision.api_key = ""
+    s.ai.openai_base_url = "https://openrouter.ai/api/v1"  # yapay zekâ da OpenRouter'daysa aynı anahtar
+    assert s.decision_endpoint()[1] == "sk-yapay-zeka"
+
+    monkeypatch.setenv("AUTOSELL_DECISION_API_KEY", "sk-ortam")
+    assert s.decision_endpoint()[1] == "sk-ortam"
+    s.decision.engine, s.decision.base_url, s.decision.model = "laya", "https://laya.benim-sunucum.com", ""
+    assert s.decision_endpoint() == ("https://laya.benim-sunucum.com", "sk-ortam", "multilingual")
+    monkeypatch.delenv("AUTOSELL_DECISION_API_KEY")
+    monkeypatch.setenv("LAYA_API_KEY", "laya-anahtar")
+    assert s.decision_endpoint()[1] == "laya-anahtar"
+
+    # Kendi sunucusuna giden istek: doğru adres, anahtar ve model
+    calls: list = []
+    base, key, model = s.decision_endpoint()
+    DecisionEngine(base, key, model, transport=fake_jev(calls)).decide({"ilan": {"baslik": "PS5"}}, LISTING_QUESTIONS)
+    assert calls[0]["url"] == "https://laya.benim-sunucum.com/v1/systemone"
+    assert calls[0]["auth"] == "Bearer laya-anahtar" and calls[0]["body"]["model"] == "multilingual"
+
+
+def test_settings_reject_invalid_decision_url(tmp_path):
+    app = AutoSell(tmp_path / "veri")
+    client = TestClient(create_app(app), headers={"X-AutoSell": "1"})
+    try:
+        r = client.put("/api/settings", json={"decision": {"engine": "laya", "base_url": "https://"}})
+        assert r.status_code == 400 and "geçersiz" in r.json()["detail"]
+        r = client.put("/api/settings", json={"decision": {"engine": "jev", "base_url": "https://openrouter.ai/api/v1",
+                                                            "api_key": "sk-or-deneme", "model": "typesafe/jev-1.13"}})
+        assert r.status_code == 200
+        data = r.json()
+        assert data["decision"]["base_url"] == "https://openrouter.ai/api/v1"
+        assert data["decision"]["api_key"].startswith("••••") and "sk-or-deneme" not in r.text  # anahtar maskeli
+        assert app.settings.decision.api_key == "sk-or-deneme"
+    finally:
+        app.shutdown()

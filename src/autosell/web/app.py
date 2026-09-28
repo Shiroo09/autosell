@@ -16,7 +16,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .. import __version__
 from ..ai import AIError, AINotConfigured
-from ..ai.decision import DecisionError
+from ..ai.decision import DecisionError, systemone_url
 from ..config import PLATFORM_NAMES, PLATFORMS
 from ..listing import rules_for, score_title
 from ..models import DealStatus
@@ -197,6 +197,12 @@ def create_app(app_service: AutoSell | None = None) -> FastAPI:
     @api.put("/api/settings")
     def put_settings(patch: dict[str, Any] = Body(...)) -> dict[str, Any]:
         patch.pop("_secrets", None)
+        decision_url = (patch.get("decision") or {}).get("base_url") if isinstance(patch.get("decision"), dict) else None
+        if isinstance(decision_url, str) and decision_url.strip():
+            try:
+                systemone_url(decision_url)
+            except DecisionError as exc:
+                raise HTTPException(400, str(exc)) from exc
         try:
             service.settings_store.update(patch)
         except Exception as exc:  # doğrulama hatası

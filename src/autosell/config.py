@@ -2,8 +2,8 @@
 
 Ayarlar ``<veri dizini>/ayarlar.json`` dosyasında tutulur ve web panelinden
 düzenlenir. API anahtarları gibi gizli değerler dosyada boş bırakılırsa ortam
-değişkenlerinden okunur (ANTHROPIC_API_KEY, OPENAI_API_KEY, LAYA_API_KEY,
-TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, AUTOSELL_PANEL_PASSWORD).
+değişkenlerinden okunur (ANTHROPIC_API_KEY, OPENAI_API_KEY, AUTOSELL_DECISION_API_KEY,
+LAYA_API_KEY, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, AUTOSELL_PANEL_PASSWORD).
 """
 
 from __future__ import annotations
@@ -56,13 +56,19 @@ class AISettings(BaseModel):
 
 
 class DecisionSettings(BaseModel):
-    """Hızlı karar motoru (Jev / Laya): fırsat adaylarını saniyeler içinde süzer."""
+    """Hızlı karar motoru (Jev / Laya): fırsat adaylarını saniyeler içinde süzer.
 
-    # "jev": API ağ geçidindeki TypeSafe Jev, "laya": bilgisayarda çalışan laya-serve, "kapali": kullanma
+    İkisi de ``POST /v1/systemone`` protokolünü konuşur; kullanıcı kendi sunucusunu (adres,
+    anahtar, model) girebilir: varsayılan sunucu, OpenRouter, TypeSafe'in kendi API'si,
+    bilgisayarındaki ya da kendi sunucusundaki Laya.
+    """
+
+    # "jev": TypeSafe Jev (bir API sağlayıcısı üzerinden), "laya": laya-serve, "kapali": kullanma
     engine: Literal["jev", "laya", "kapali"] = "jev"
-    # Boşsa jev için yapay zekâ ağ geçidi (OpenAI base URL), laya için http://127.0.0.1:8000
+    # Boşsa jev için varsayılan sunucu (DEFAULT_OPENAI_BASE_URL), laya için http://127.0.0.1:8000
     base_url: str = ""
-    # Boşsa jev için OpenAI uyumlu API anahtarı, laya için LAYA_API_KEY (tanımlıysa) kullanılır
+    # Boşsa AUTOSELL_DECISION_API_KEY; o da yoksa jev için (aynı sunucudaysa) yapay zekâ anahtarı,
+    # laya için LAYA_API_KEY kullanılır
     api_key: str = ""
     # Boşsa jev için "jev", laya için "multilingual" (Türkçe için doğru model)
     model: str = ""
@@ -257,14 +263,24 @@ class Settings(BaseModel):
         d = self.decision
         if d.engine == "kapali":
             return None
+        key = d.api_key.strip() or os.environ.get("AUTOSELL_DECISION_API_KEY", "").strip()
         if d.engine == "jev":
-            base = d.base_url.strip() or self.ai.openai_base_url.strip()
-            key = d.api_key.strip() or self.ai.openai_api_key.strip() or os.environ.get("OPENAI_API_KEY", "")
+            base = d.base_url.strip() or DEFAULT_OPENAI_BASE_URL
+            # Yapay zekâ anahtarı yalnızca aynı sunucuya gönderilir (başka firmanın anahtarı sızmasın)
+            if not key and _same_host(base, self.ai.openai_base_url):
+                key = self.ai.openai_api_key.strip() or os.environ.get("OPENAI_API_KEY", "").strip()
             return base, key, d.model.strip() or "jev"
         from .ai.decision import DEFAULT_LAYA_URL
 
         base = d.base_url.strip() or DEFAULT_LAYA_URL
-        return base, d.api_key.strip() or os.environ.get("LAYA_API_KEY", ""), d.model.strip() or "multilingual"
+        return base, key or os.environ.get("LAYA_API_KEY", "").strip(), d.model.strip() or "multilingual"
+
+
+def _same_host(a: str, b: str) -> bool:
+    from urllib.parse import urlparse
+
+    ha, hb = urlparse((a or "").strip()).hostname, urlparse((b or "").strip()).hostname
+    return bool(ha) and ha == hb
 
 
 @dataclass(frozen=True)
@@ -314,6 +330,7 @@ ENV_DEFAULTS: tuple[tuple[str, str, str], ...] = (
     ("AUTOSELL_CLAUDE_MODEL", "ai", "claude_model"),
     ("AUTOSELL_DECISION_ENGINE", "decision", "engine"),
     ("AUTOSELL_DECISION_URL", "decision", "base_url"),
+    ("AUTOSELL_DECISION_MODEL", "decision", "model"),
 )
 
 
@@ -430,7 +447,7 @@ class SettingsStore:
         env_fallbacks = {
             ("ai", "claude_api_key"): os.environ.get("ANTHROPIC_API_KEY", ""),
             ("ai", "openai_api_key"): os.environ.get("OPENAI_API_KEY", ""),
-            ("decision", "api_key"): os.environ.get("LAYA_API_KEY", ""),
+            ("decision", "api_key"): os.environ.get("AUTOSELL_DECISION_API_KEY", "") or os.environ.get("LAYA_API_KEY", ""),
             ("notify", "telegram_token"): os.environ.get("TELEGRAM_BOT_TOKEN", ""),
             ("web", "password"): os.environ.get("AUTOSELL_PANEL_PASSWORD", ""),
         }

@@ -401,8 +401,8 @@ class AutoSell:
         if engine is None:
             if self.settings.decision.engine == "kapali":
                 raise DecisionError("Hızlı karar motoru kapalı.")
-            raise DecisionError("Jev için API anahtarı yok (Yapay Zekâ bölümündeki OpenAI uyumlu anahtar "
-                                "ya da bu bölümdeki anahtar kullanılır).")
+            raise DecisionError("Jev için API anahtarı yok. Bu bölüme sağlayıcınızın (ör. OpenRouter, TypeSafe) "
+                                "anahtarını girin; varsayılan sunucuda Yapay Zekâ bölümündeki anahtar kullanılır.")
         comps = ["Apple iPhone 13 128 GB Mavi", "iPhone 13 128GB Gece Yarısı Kutulu", "iPhone 13 128 GB Yıldız Işığı"]
         cases = [  # (başlık, fiyat, açıklama, beklenen: tür, aynı ürün, kusurlu, şüpheli)
             ("iPhone 13 128 GB Mavi Temiz", "27.500 TL", "Tek elden, sorunsuz, kutulu faturalı.", ("urun", True, False, False)),

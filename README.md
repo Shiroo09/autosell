@@ -32,10 +32,13 @@ Gereksinim: **Python 3.10+**.
 git clone https://github.com/Shiroo09/autosell.git
 cd autosell
 python -m venv .venv
-# Windows: .venv\Scripts\activate    macOS/Linux: source .venv/bin/activate
+# Windows (PowerShell): .venv\Scripts\Activate.ps1   Windows (cmd): .venv\Scripts\activate
+# macOS/Linux: source .venv/bin/activate
 pip install -e .
 playwright install chromium       # otomasyonun kullanacağı tarayıcı
 ```
+
+PowerShell betik çalıştırmaya izin vermezse bir kez `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` çalıştır.
 
 İsteğe bağlı: iPhone HEIC fotoğrafları için `pip install pillow-heif`.
 
@@ -166,9 +169,21 @@ Büyük dil modelleri (muse-spark, Claude) ilan yazmakta iyidir ama bir ilanı i
 
 Motor yoksa ya da cevap vermezse tarama, kural tabanlı puanlamayla kesintisiz devam eder. Aynı ilan için karar tekrar sorulmaz (önbellek).
 
-**Jev (varsayılan, kurulum gerektirmez):** TypeSafe'in karar modeli. Yapay zekâ bölümündeki OpenAI uyumlu sunucu `POST /v1/systemone` uç noktasını sunuyorsa (varsayılan `betaapiv2.llmapi.art` sunuyor) aynı API anahtarıyla çalışır. Ağ gecikmesi dahil ilan başına ~1–2 sn sürer, adaylar 4'er paralel sorulur. Ayarlar → Hızlı Karar Motoru → **Motoru test et** ile dene.
+**Kendi sağlayıcını ekle:** Ayarlar → Hızlı Karar Motoru bölümünde motoru (Jev / Laya), **sunucu adresini (base URL)**, **API anahtarını** ve **modeli** kendin girebilirsin. Hazır sağlayıcı düğmeleri adres ve modeli tek dokunuşla doldurur, anahtarı sen girersin:
 
-**Laya (bilgisayarında, ücretsiz, açık kaynak):** Jev'in açık kaynak karşılığıdır (Apache-2.0). Aynı `/v1/systemone` protokolünü konuştuğu için ayarı "Laya" yapman yeterli.
+| Sağlayıcı | Sunucu adresi | Model | Anahtar |
+|---|---|---|---|
+| Varsayılan sunucu (Jev) | `https://betaapiv2.llmapi.art/v1` (boş bırakılabilir) | `jev` | Yapay Zekâ bölümündeki anahtar kullanılır |
+| OpenRouter (Jev) | `https://openrouter.ai/api/v1` | `typesafe/jev-1.13` | OpenRouter anahtarın |
+| TypeSafe'in kendi API'si (Jev) | `https://api.typesafe.ai/v1` | `jev-latest` | TypeSafe anahtarın |
+| Laya, bu bilgisayar | `http://127.0.0.1:8000` (boş bırakılabilir) | `multilingual` | gerekmez (`LAYA_API_KEY` ile başlattıysan onu gir) |
+| Laya, kendi sunucun | `https://laya.alan-adin.com` | `multilingual` | sunucunun `LAYA_API_KEY` değeri |
+
+Adres `/v1` ile bitebilir ya da doğrudan tam `/v1/systemone` adresi olabilir. `POST /v1/systemone` protokolünü konuşan her sunucu çalışır. Aynı ayarlar `.env` ile de verilebilir: `AUTOSELL_DECISION_ENGINE`, `AUTOSELL_DECISION_URL`, `AUTOSELL_DECISION_MODEL`, `AUTOSELL_DECISION_API_KEY` (bkz. `.env.example`). Güvenlik için Yapay Zekâ bölümündeki anahtar yalnızca aynı sunucuya gönderilir; başka bir sağlayıcı için anahtarı ayrıca girmen gerekir. Ayarları kaydettikten sonra **Motoru test et** 4 örnek ilanla bağlantıyı ve güvenilirliği ölçer.
+
+**Jev (varsayılan, kurulum gerektirmez):** TypeSafe'in karar modeli. Varsayılan sunucu (`betaapiv2.llmapi.art`) Jev'i `POST /v1/systemone` üzerinden sunar ve Yapay Zekâ bölümündeki anahtarla çalışır. Ağ gecikmesi dahil ilan başına ~0,6–1 sn sürer, adaylar 4'er paralel sorulur. Sağlayıcı geçici olarak hata verirse tarama durmaz, kural tabanlı puanlamayla sürer.
+
+**Laya (bilgisayarında ya da kendi sunucunda, ücretsiz, açık kaynak):** Jev'in açık kaynak karşılığıdır ([NandhaKishorM/laya](https://github.com/NandhaKishorM/laya), Apache-2.0). `laya-serve` aynı `/v1/systemone` protokolünü konuştuğu için motoru "Laya" yapıp adresini girmen yeterli.
 
 > **Ölçüm (Eylül 2026, 20 Türkçe ilan, 56 karar, üründeki sorular):** Jev 56/56 doğru, ilan başına ~0,6 sn. Laya'nın hazır `multilingual` modeli (4 çekirdekli işlemcide, ekran kartsız) 16/56 doğru, ilan başına ~0,6 sn; farklı soru biçimleriyle de %27–34'te kaldı. Yani Laya **eğitilmeden** kullanılırsa iyi fırsatları da eler. Laya ancak kendi etiketli ilanlarınla eğitilirse ([ince ayar not defteri](https://github.com/NandhaKishorM/laya/blob/main/notebooks/laya_finetune_typed_decisions_2xT4_kaggle.ipynb), Kaggle'ın ücretsiz GPU'suyla) işe yarar. **Motoru test et** düğmesi 4 örnek ilanla seçili motorun güvenilirliğini ölçer ve güvenilir değilse uyarır.
 
@@ -218,8 +233,8 @@ urunler/
   - `tarayici/<platform>-tarama/`: tarama ve fiyat araştırması için kullanılan, hiç giriş yapılmamış ayrı profil
   - `ekran/`: yayın öncesi/sonrası ve hata ekran görüntüleri
 - Ortam değişkenleri (`.env` dosyası da okunur):
-  - Gizli alanlar: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `LAYA_API_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `AUTOSELL_PANEL_PASSWORD`. Ayar dosyasında boş bırakılan gizli alanlar bunlardan okunur.
-  - Varsayılanlar: `AUTOSELL_AI_PROVIDER`, `OPENAI_BASE_URL`, `AUTOSELL_OPENAI_MODEL`, `AUTOSELL_CLAUDE_MODEL`, `AUTOSELL_DECISION_ENGINE` (`jev` / `laya` / `kapali`), `AUTOSELL_DECISION_URL`. Panelden kaydedilen ayarlar bunların önüne geçer.
+  - Gizli alanlar: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `AUTOSELL_DECISION_API_KEY`, `LAYA_API_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `AUTOSELL_PANEL_PASSWORD`. Ayar dosyasında boş bırakılan gizli alanlar bunlardan okunur.
+  - Varsayılanlar: `AUTOSELL_AI_PROVIDER`, `OPENAI_BASE_URL`, `AUTOSELL_OPENAI_MODEL`, `AUTOSELL_CLAUDE_MODEL`, `AUTOSELL_DECISION_ENGINE` (`jev` / `laya` / `kapali`), `AUTOSELL_DECISION_URL`, `AUTOSELL_DECISION_MODEL`. Panelden kaydedilen ayarlar bunların önüne geçer.
 - **Hız ve güvenlik ayarları** (Ayarlar → Fırsat Avcısı): tarama aralıkları, saatlik istek sınırı, resimsiz tarama, engelde duraklatma süresi, derin/hızlı taramada okunacak sayfa sayısı. Platform başına günlük ilan sınırı, iki ilan arası bekleme ve mükerrer ilan süresi: Ayarlar → Platformlar.
 - **Site değişirse:** Ayarlar → Platformlar → Gelişmiş bölümünden ilan verme adresi, arama adresi şablonu, ilan bağlantısı kalıpları ve arama sonucu kart seçicileri kod değiştirmeden güncellenebilir.
 - **Tarayıcı:** `headless` (görünmez mod), `channel: "chrome"` (bilgisayarda kurulu Chrome'u kullan), eylemler arası bekleme süreleri ve kullanıcı müdahalesi zaman aşımı ayarlanabilir.

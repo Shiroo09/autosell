@@ -139,11 +139,20 @@ const MARKET_FIELDS = [
 ];
 
 const decisionOn = (v) => v.engine !== 'kapali';
+// Hazır sağlayıcılar: dokununca motor, adres ve model birlikte dolar (anahtarı kullanıcı girer).
+const DECISION_PRESETS = [
+  { label: 'Varsayılan sunucu · Jev', values: { engine: 'jev', base_url: '', model: '' } },
+  { label: 'OpenRouter · Jev', values: { engine: 'jev', base_url: 'https://openrouter.ai/api/v1', model: 'typesafe/jev-1.13' } },
+  { label: 'TypeSafe · Jev', values: { engine: 'jev', base_url: 'https://api.typesafe.ai/v1', model: 'jev-latest' } },
+  { label: 'Laya · bu bilgisayar', values: { engine: 'laya', base_url: 'http://127.0.0.1:8000', model: 'multilingual' } },
+  { label: 'Laya · kendi sunucum', values: { engine: 'laya', base_url: 'https://', model: 'multilingual' } },
+];
 const DECISION_FIELDS = [
-  { key: 'engine', type: 'segmented', label: 'Motor', rerender: true, options: [['jev', 'Jev (sunucu)'], ['laya', 'Laya (bilgisayarımda)'], ['kapali', 'Kapalı']], hint: 'Fırsat adaylarını saniyeler içinde süzer: yalnızca aksesuar/parça mı, emsallerle aynı model mi, arızalı ya da kilitli mi, kapora veya kayıt dışı şüphesi var mı? Metin yazmaz, yalnızca karar verir.' },
-  { key: 'base_url', type: 'text', label: 'Sunucu adresi', optional: true, mono: true, inputmode: 'url', placeholder: 'Boş: varsayılan', showIf: decisionOn, hint: 'Boşsa Jev için Yapay Zekâ bölümündeki sunucu, Laya için http://127.0.0.1:8000 kullanılır.' },
-  { key: 'api_key', type: 'secret', label: 'API anahtarı', secret: 'decision.api_key', env: 'LAYA_API_KEY', optional: true, showIf: decisionOn, placeholder: 'Boş: varsayılan', hint: 'Boşsa Jev için Yapay Zekâ bölümündeki anahtar kullanılır. Laya’yı LAYA_API_KEY ile başlattıysanız buraya girin.' },
-  { key: 'model', type: 'text', label: 'Model', optional: true, mono: true, placeholder: 'Jev: jev · Laya: multilingual', showIf: decisionOn },
+  { key: 'engine', type: 'segmented', label: 'Motor', rerender: true, options: [['jev', 'Jev'], ['laya', 'Laya'], ['kapali', 'Kapalı']], hint: 'Fırsat adaylarını saniyeler içinde süzer: yalnızca aksesuar/parça mı, emsallerle aynı model mi, arızalı ya da kilitli mi, kapora veya kayıt dışı şüphesi var mı? Metin yazmaz, yalnızca karar verir.' },
+  { key: '_presets', type: 'presets', label: 'Hazır sağlayıcılar', presets: DECISION_PRESETS, hint: 'Dokununca adres ve model dolar; anahtarınızı aşağıya girin. Kendi sunucunuzu (ör. başka bir Jev sağlayıcısı ya da uzak bir laya-serve) adres alanına elle de yazabilirsiniz.' },
+  { key: 'base_url', type: 'text', label: 'Sunucu adresi (base URL)', optional: true, mono: true, inputmode: 'url', placeholder: 'Boş: varsayılan', showIf: decisionOn, hint: 'Boşsa Jev için varsayılan sunucu (betaapiv2.llmapi.art), Laya için http://127.0.0.1:8000. /v1 ile bitebilir ya da tam /v1/systemone adresi olabilir.' },
+  { key: 'api_key', type: 'secret', label: 'API anahtarı', secret: 'decision.api_key', env: 'AUTOSELL_DECISION_API_KEY', optional: true, showIf: decisionOn, placeholder: 'Boş: varsayılan', hint: 'OpenRouter ya da TypeSafe kullanıyorsanız o sağlayıcının anahtarı. Boşsa varsayılan sunucuda Yapay Zekâ bölümündeki anahtar, Laya’da LAYA_API_KEY kullanılır (laya-serve anahtarsız da çalışır).' },
+  { key: 'model', type: 'text', label: 'Model', optional: true, mono: true, placeholder: 'Jev: jev · Laya: multilingual', showIf: decisionOn, hint: 'Sağlayıcıdaki model adı: varsayılan sunucu “jev”, OpenRouter “typesafe/jev-1.13”, TypeSafe “jev-latest”, Laya “multilingual” (Türkçe).' },
   { advanced: [
     { row: [
       { key: 'max_checks', type: 'number', label: 'Tarama başına en fazla aday', min: 0, max: 100, int: true },
@@ -207,7 +216,7 @@ export async function mount(root, ctx) {
     const src = settings[def.key] || {};
     const values = {};
     for (const f of flatFields(def.fields)) {
-      if (f.type === 'secret') continue;
+      if (f.type === 'secret' || f.type === 'presets') continue;
       const v = src[f.key];
       if (f.type === 'lines') values[f.key] = (v || []).join('\n');
       else if (f.type === 'kv') values[f.key] = Object.entries(v || {}).map(([k, x]) => `${k}=${x}`).join('\n');
@@ -244,6 +253,14 @@ export async function mount(root, ctx) {
           <div class="segmented seg-wrap" role="radiogroup" aria-labelledby="${id}-l">
             ${f.options.map(([val, lbl]) => html`<label><input type="radio" name="${id}" value="${val}" data-key="${f.key}" ${String(v) === String(val) ? 'checked' : ''} /><span class="seg">${lbl}</span></label>`)}
           </div>${hint}`);
+      case 'presets': {
+        const same = (p) => Object.entries(p.values).every(([k, x]) => String(u.values[k] ?? '') === String(x));
+        return wrap(html`
+          <span class="label" id="${id}-l">${f.label}</span>
+          <div class="chips quick-picks" role="group" aria-labelledby="${id}-l">
+            ${f.presets.map((p, i) => html`<button type="button" class="chip chip-add ${same(p) ? 'is-added' : ''}" data-preset="${i}" aria-pressed="${same(p)}">${p.label}</button>`)}
+          </div>${hint}`);
+      }
       case 'select':
         return wrap(html`${label}
           <select id="${id}" class="select" data-key="${f.key}" ${describedBy ? html`aria-describedby="${describedBy}"` : ''}>
@@ -425,6 +442,7 @@ export async function mount(root, ctx) {
   function collectPatch(u) {
     const patch = {};
     for (const f of flatFields(u.def.fields)) {
+      if (f.type === 'presets') continue;
       if (f.type === 'secret') {
         const s = u.secrets[f.key];
         if (s !== undefined && s !== null) patch[f.key] = s;
@@ -611,6 +629,23 @@ export async function mount(root, ctx) {
       u.secrets[keep.dataset.keepSecret] = undefined;
       renderUnit(u.def.key);
       updateFoot(u.def.key);
+      return;
+    }
+    const preset = t.closest('[data-preset]');
+    if (preset) {
+      const u = units.get(preset.closest('[data-unit]').dataset.unit);
+      const f = flatFields(u.def.fields).find((x) => x.type === 'presets');
+      const p = f && f.presets[Number(preset.dataset.preset)];
+      if (p) {
+        Object.assign(u.values, p.values);
+        renderUnit(u.def.key);
+        updateFoot(u.def.key);
+        const urlInput = $(`#st-${u.def.key}-base_url`, root);
+        if (urlInput && p.values.base_url === 'https://') {
+          urlInput.focus();
+          urlInput.setSelectionRange(urlInput.value.length, urlInput.value.length);
+        }
+      }
       return;
     }
     const pick = t.closest('[data-pick]');

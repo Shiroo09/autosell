@@ -27,9 +27,15 @@ class DecisionError(RuntimeError):
 
 def systemone_url(base_url: str) -> str:
     """Taban adresi /v1/systemone uç noktasına çevirir (".../v1" ya da kök adres kabul edilir)."""
+    from urllib.parse import urlparse
+
     url = (base_url or "").strip().rstrip("/")
     if not url:
         raise DecisionError("Karar motoru adresi boş.")
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https") or not parsed.hostname:
+        raise DecisionError(f"Karar motoru adresi geçersiz: {base_url!r} (ör. https://openrouter.ai/api/v1 "
+                            "ya da http://127.0.0.1:8000)")
     if url.endswith("/v1/systemone"):
         return url
     if url.endswith("/v1"):
