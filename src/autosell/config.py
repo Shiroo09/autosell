@@ -146,19 +146,21 @@ def default_letgo() -> PlatformSettings:
         use_emoji=True,
         home_url="https://www.letgo.com/",
         login_url="https://www.letgo.com/",
-        post_url="",
-        search_url_template="https://www.letgo.com/arama?q={q}",
-        newest_sort_param="",
+        post_url="https://www.letgo.com/ilan-ver",
+        search_url_template="https://www.letgo.com/arama?query_text={q}&isSearchCall=true",
+        newest_sort_param="sorting=desc-creation",
         listing_url_patterns=[
             r"-iid-(\d{5,})",
             r"/item/[^\s?#]*?(\d{6,})",
             r"/ilan/[^\s?#]*?(\d{6,})",
             r"/i/[^/\s?#]+_([0-9a-fA-F-]{8,})",
         ],
+        # Eylül 2026 letgo tasarımı; eski tasarımın (data-aut-id) seçicileri yedek olarak "||" ile denenir.
         card_selectors={
-            "card": '[data-aut-id="itemBox"]',
-            "title": '[data-aut-id="itemTitle"]',
-            "price": '[data-aut-id="itemPrice"]',
+            "card": '[data-testid="item-card"]',
+            "title": '[data-slot="item-card-image"] img@alt || [data-slot="item-card-body"] div.line-clamp-1'
+                     ' || [data-aut-id="itemTitle"]',
+            "price": '[data-slot="item-card-body"] p || [data-aut-id="itemPrice"]',
             "location": '[data-aut-id="item-location"]',
             "date": '[data-aut-id="item-date"]',
             "image": "img",
@@ -334,6 +336,33 @@ def deep_merge(base: dict[str, Any], patch: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
+# Sitelerin değişmesiyle geçersiz kalan eski varsayılanlar. Kayıtlı ayar hâlâ eski varsayılanı
+# taşıyorsa (kullanıcı değiştirmemişse) yenisiyle değiştirilir.
+_OLD_LETGO_SEARCH = "https://www.letgo.com/arama?q={q}"
+_OLD_LETGO_CARDS = {
+    "card": '[data-aut-id="itemBox"]',
+    "title": '[data-aut-id="itemTitle"]',
+    "price": '[data-aut-id="itemPrice"]',
+    "location": '[data-aut-id="item-location"]',
+    "date": '[data-aut-id="item-date"]',
+    "image": "img",
+}
+
+
+def migrate_settings(data: dict[str, Any]) -> dict[str, Any]:
+    letgo = data.get("letgo")
+    if isinstance(letgo, dict) and letgo.get("search_url_template") == _OLD_LETGO_SEARCH:
+        fresh = default_letgo()
+        letgo["search_url_template"] = fresh.search_url_template
+        if not letgo.get("newest_sort_param"):
+            letgo["newest_sort_param"] = fresh.newest_sort_param
+        if not letgo.get("post_url"):
+            letgo["post_url"] = fresh.post_url
+        if letgo.get("card_selectors") in (None, {}, _OLD_LETGO_CARDS):
+            letgo["card_selectors"] = dict(fresh.card_selectors)
+    return data
+
+
 def mask_secret(value: str) -> str:
     if not value:
         return ""
@@ -365,7 +394,7 @@ class SettingsStore:
             data = json.loads(self.path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
             raise RuntimeError(f"Ayar dosyası okunamadı ({self.path}): {exc}") from exc
-        return Settings.model_validate(deep_merge(base, data))
+        return Settings.model_validate(deep_merge(base, migrate_settings(data)))
 
     def save(self, settings: Settings) -> Settings:
         with self._lock:

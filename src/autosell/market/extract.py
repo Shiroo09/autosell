@@ -50,23 +50,38 @@ CARDS_JS = r"""
   const seen = new Set();
   const q = (card, s) => { if (!s) return null; try { return card.querySelector(s); } catch (e) { return null; } };
   const txt = (el) => el ? (el.innerText || el.textContent || '') : '';
+  // Seçici yazımı: "A || B" sırayla denenir; "img@alt" öğenin özniteliğini okur.
+  const pick = (card, spec) => {
+    if (!spec) return { el: null, value: '' };
+    for (const part of String(spec).split('||').map(x => x.trim()).filter(Boolean)) {
+      const at = part.match(/^(.*)@([\w-]+)$/);
+      const el = q(card, at ? at[1].trim() : part);
+      if (!el) continue;
+      const value = at ? (el.getAttribute(at[2]) || '') : txt(el);
+      if (clean(value)) return { el, value };
+    }
+    return { el: null, value: '' };
+  };
   if (sel.card) {
     let cards = [];
     try { cards = Array.from(document.querySelectorAll(sel.card)); } catch (e) { cards = []; }
     for (const card of cards) {
-      const titleEl = q(card, sel.title);
+      const title = pick(card, sel.title);
+      const titleEl = title.el;
       let link = titleEl ? (titleEl.closest('a[href]') || titleEl.querySelector('a[href]')) : null;
-      if (!link) link = card.querySelector('a[href]') || card.closest('a[href]');
+      if (!link || !idFromHref(link.href)) {
+        link = Array.from(card.querySelectorAll('a[href]')).find(a => idFromHref(a.href)) || card.closest('a[href]') || link;
+      }
       const href = link ? link.href : '';
       const id = (sel.id_attr && card.getAttribute(sel.id_attr)) || idFromHref(href);
       if (!id || seen.has(id)) continue;
       seen.add(id);
       out.push({
         id, url: href,
-        title: clean(txt(titleEl) || (link && (link.getAttribute('title') || link.innerText))),
-        price: clean(txt(q(card, sel.price))),
-        location: clean(txt(q(card, sel.location)).replace(/\n+/g, ' / ')),
-        date: clean(txt(q(card, sel.date)).replace(/\n+/g, ' ')),
+        title: clean(title.value || (link && (link.getAttribute('title') || link.innerText))),
+        price: clean(pick(card, sel.price).value),
+        location: clean(pick(card, sel.location).value.replace(/\n+/g, ' / ')),
+        date: clean(pick(card, sel.date).value.replace(/\n+/g, ' ')),
         image: imgOf(card), lines: lines(card).slice(0, 14), source: 'selector',
       });
     }
@@ -89,6 +104,11 @@ CARDS_JS = r"""
     if (!title) {
       const heading = card.querySelector('h1, h2, h3, h4, [class*="title" i], [class*="baslik" i]');
       if (heading) title = clean(heading.innerText || heading.textContent);
+    }
+    if (!title) {  // Birçok site ilan başlığını fotoğrafın alt metnine yazar
+      const img = card.querySelector('img[alt]');
+      const alt = img ? clean(img.getAttribute('alt')) : '';
+      if (alt.length >= 4) title = alt;
     }
     out.push({ id, url: a.href, title, price: '', location: '', date: '', image: imgOf(card), lines: lines(card).slice(0, 14), source: 'generic' });
   }
@@ -153,6 +173,18 @@ def _is_location_line(line: str) -> bool:
     return any(p in PROVINCES for p in parts) and len(line) <= 60
 
 
+# Kartlardaki pazarlama rozetleri (başlık ya da konum sanılmasın)
+_BADGE_RE = re.compile(
+    r"^(öne çıkan|büyük ilan|acil|vitrin|yeni|elden al, kartla öde!?|cüzdanım|güvende|cüzdanım güvende|"
+    r"ücretsiz|kargo|ücretsiz kargo|\d+ taksit|[\d.,]+ satıcı puanı|satıcı puanı|doping|fırsat|pazarlık payı var)$",
+    re.IGNORECASE,
+)
+
+
+def _is_badge(line: str) -> bool:
+    return bool(_BADGE_RE.match(line.strip()))
+
+
 def parse_card(raw: dict[str, Any], platform: str) -> ScrapedListing | None:
     lines: list[str] = raw.get("lines") or []
     price_text = raw.get("price") or next((ln for ln in lines if parse_price(ln)[0] and re.search(r"TL|₺|\$|€|USD|EUR", ln)), "")
@@ -162,10 +194,12 @@ def parse_card(raw: dict[str, Any], platform: str) -> ScrapedListing | None:
     date_text = (raw.get("date") or "").strip()
     if not location:
         location = next((ln for ln in lines if _is_location_line(ln)), "")
+    location = re.sub(r"\s+,", ",", location)  # "Ankara , Çankaya" -> "Ankara, Çankaya"
     if not date_text:
         date_text = next((ln for ln in lines if _is_date_line(ln) and not re.search(r"TL|₺|\$|€", ln)), "")
-    if not title or len(title) < 4:
-        rest = [ln for ln in lines if ln not in (price_text, location, date_text) and not re.search(r"TL|₺", ln)]
+    if not title or len(title) < 4 or _is_badge(title):
+        rest = [ln for ln in lines if ln not in (price_text, location, date_text) and not re.search(r"TL|₺", ln)
+                and not _is_badge(ln)]
         title = max(rest, key=len, default=title)
     if not title:
         return None

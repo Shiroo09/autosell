@@ -35,6 +35,37 @@ HASHED_HTML = """
 </ul>
 """
 
+# letgo.com'un Eylül 2026 ızgara kartı yapısı (sadeleştirilmiş): bağlantı kartın kardeşi,
+# kartta çok sayıda rozet var ("Öne Çıkan", "Elden al, kartla öde!", "6 taksit" ...).
+LETGO_2026_HTML = """
+<div data-testid="category-item-grid">
+  <div data-testid="item-card" class="relative">
+    <a href="/item/iphone-13-iid-1734422194" class="absolute inset-0"></a>
+    <div><div data-slot="item-card">
+      <div data-slot="item-card-image"><img src="https://imvm.letgo.com/a.jpg" alt="iPhone 13 128 GB Mavi">
+        <div data-slot="item-card-image-bar"><span>Öne Çıkan</span></div></div>
+      <div data-slot="item-card-body">
+        <div><div class="flex">Elden al, kartla öde!</div></div>
+        <div><p class="line-clamp-1">27.000 TL</p></div>
+        <div class="overflow-hidden"><div class="line-clamp-1">iPhone 13 128 GB Mavi</div></div>
+        <div><span>İstanbul, Beyoğlu</span></div>
+      </div></div></div>
+  </div>
+  <div data-testid="item-card" class="relative">
+    <a href="/item/ps5-disk-iid-1734422195" class="absolute inset-0"></a>
+    <div><div data-slot="item-card">
+      <div data-slot="item-card-image"><img src="https://imvm.letgo.com/b.jpg" alt=""></div>
+      <div data-slot="item-card-body">
+        <div>Cüzdanım</div><div>Güvende</div><div>Elden al, kartla öde!</div>
+        <div><p class="line-clamp-1">18.500 TL</p><p>6 taksit</p></div>
+        <div class="overflow-hidden"><div class="line-clamp-1">PS5 Disk 2 Kol</div></div>
+        <div><span>4.6 Satıcı Puanı</span></div>
+        <div><span>Ankara, Çankaya</span></div>
+      </div></div></div>
+  </div>
+</div>
+"""
+
 DETAIL_HTML = """
 <div class="classifiedDetailTitle"><h1>iPhone 13 128 GB Mavi</h1></div>
 <div class="classifiedInfo"><h3>32.500 TL</h3>
@@ -85,3 +116,30 @@ def test_detail_extraction(page):
     assert d["price_value"] == 32500
     assert d["attributes"]["Dahili Hafıza"] == "128 GB"
     assert "iCloud kilidi yok" in d["description"]
+
+
+def test_letgo_2026_cards_skip_badges(page):
+    page.set_content(LETGO_2026_HTML)
+    items = extract_cards(page, "letgo", default_letgo())
+    assert [i.external_id for i in items] == ["1734422194", "1734422195"]
+    a, b = items
+    assert a.title == "iPhone 13 128 GB Mavi" and a.price == 27000 and a.location == "İstanbul, Beyoğlu"
+    assert a.url.endswith("/item/iphone-13-iid-1734422194") and a.image_url.endswith("/a.jpg")
+    # Fotoğraf alt metni boşsa gövdedeki başlık okunur; rozetler başlık/konum sanılmaz
+    assert b.title == "PS5 Disk 2 Kol" and b.price == 18500 and b.location == "Ankara, Çankaya"
+
+
+def test_letgo_search_url_sorts_newest_first():
+    from autosell.automation.platforms.letgo import LetgoAdapter
+    from autosell.config import Settings
+
+    settings = Settings()
+    adapter = LetgoAdapter(settings, None, None, None)  # type: ignore[arg-type]
+    url = adapter.search_url(query="iphone 13")
+    assert url == "https://www.letgo.com/arama?query_text=iphone+13&isSearchCall=true&sorting=desc-creation"
+
+
+def test_badge_lines_are_not_titles():
+    item = parse_card({"id": "7", "url": "u", "lines": ["Öne Çıkan", "Elden al, kartla öde!", "12.000 TL",
+                                                        "iPhone 13", "İstanbul, Zeytinburnu"]}, "letgo")
+    assert item and item.title == "iPhone 13" and item.location == "İstanbul, Zeytinburnu"

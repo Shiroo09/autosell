@@ -135,3 +135,24 @@ def test_publish_endpoint_returns_409_with_code(tmp_path):
         assert r.status_code == 409 and r.json()["code"] == "duplicate"
     finally:
         app.shutdown()
+
+
+def test_old_letgo_defaults_are_migrated(tmp_path):
+    import json
+
+    from autosell.config import SettingsStore
+
+    path = tmp_path / "ayarlar.json"
+    path.write_text(json.dumps({"letgo": {
+        "search_url_template": "https://www.letgo.com/arama?q={q}", "newest_sort_param": "",
+        "card_selectors": {"card": '[data-aut-id="itemBox"]', "title": '[data-aut-id="itemTitle"]',
+                           "price": '[data-aut-id="itemPrice"]', "location": '[data-aut-id="item-location"]',
+                           "date": '[data-aut-id="item-date"]', "image": "img"},
+        "max_publish_per_day": 3}}), encoding="utf-8")
+    letgo = SettingsStore(path).get().letgo
+    assert "query_text={q}" in letgo.search_url_template and letgo.newest_sort_param == "sorting=desc-creation"
+    assert letgo.card_selectors["card"] == '[data-testid="item-card"]'
+    assert letgo.max_publish_per_day == 3  # kullanıcının kendi ayarı korunur
+
+    path.write_text(json.dumps({"letgo": {"search_url_template": "https://ozel/{q}"}}), encoding="utf-8")
+    assert SettingsStore(path).get().letgo.search_url_template == "https://ozel/{q}"  # özel ayara dokunulmaz

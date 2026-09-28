@@ -9,7 +9,7 @@ from .base import PlatformAdapter
 class LetgoAdapter(PlatformAdapter):
     name = "letgo"
     post_button_texts = ["Sat", "+ Sat", "SAT", "Ücretsiz İlan Ver", "İlan Ver", "Ürün Sat", "Hemen Sat", "Satış yap"]
-    logged_out_texts = ["Giriş Yap", "Giriş yap", "Üye Ol", "Kayıt Ol", "Giriş yap / Kayıt ol"]
+    logged_out_texts = ["Giriş", "Giriş Yap", "Giriş yap", "Üye Ol", "Kayıt Ol", "Giriş yap / Kayıt ol"]
     logged_in_texts = ["Çıkış Yap", "Çıkış", "Profilim", "Hesabım", "İlanlarım", "Mesajlar", "Sohbetler", "Favorilerim"]
 
     def next_page(self, driver: PageDriver, page_no: int) -> bool:
