@@ -81,9 +81,11 @@ def conform(value: Any, schema: dict[str, Any]) -> Any:
         if value in options:
             return value
         if isinstance(value, str):
-            low = value.strip().casefold()
+            from ..textutil import normalize  # Türkçe harf duyarlı karşılaştırma (İ/ı)
+
+            low = normalize(value)
             for opt in options:
-                if isinstance(opt, str) and opt.casefold() == low:
+                if isinstance(opt, str) and normalize(opt) == low:
                     return opt
         return None
     if "anyOf" in schema:
