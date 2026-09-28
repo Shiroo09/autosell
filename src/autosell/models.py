@@ -142,9 +142,11 @@ class Watch(BaseModel):
     exclude_words: list[str] = Field(default_factory=list)
     min_profit: float = 1000.0
     min_margin_pct: float = 12.0
-    interval_min: int = 15
+    interval_min: int = 5
     active: bool = True
     last_run_at: str | None = None
+    # Son "derin" tarama (birden çok sayfa); arada yalnızca en yeni ilk sayfa kontrol edilir
+    last_deep_scan_at: str | None = None
     last_status: str = ""
     last_found: int = 0
     created_at: str = Field(default_factory=now_iso)
@@ -196,6 +198,8 @@ class Deal(BaseModel):
     reasons: list[str] = Field(default_factory=list)
     comps: list[CompRef] = Field(default_factory=list)
     ai: dict[str, Any] | None = None
+    # Hızlı karar motoru (Jev / Laya) sonuçları
+    fast: dict[str, Any] | None = None
     status: DealStatus = "yeni"
     notified: bool = False
     created_at: str = Field(default_factory=now_iso)

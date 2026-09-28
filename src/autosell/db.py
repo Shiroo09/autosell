@@ -260,6 +260,27 @@ class Database:
             params.append(since)
         return [_listing_from_row(r) for r in self._query(sql + " ORDER BY last_seen DESC", params)]
 
+    def known_external_ids(self, platform: str, external_ids: Iterable[str], watch_id: int | None = None) -> set[str]:
+        """Verilen ilan numaralarından daha önce görülenler (watch_id verilirse o takipte görülenler)."""
+        ids = list(dict.fromkeys(external_ids))
+        known: set[str] = set()
+        for start in range(0, len(ids), 400):
+            chunk = ids[start:start + 400]
+            marks = ",".join("?" * len(chunk))
+            if watch_id is None:
+                rows = self._query(
+                    f"SELECT external_id FROM market_listings WHERE platform = ? AND external_id IN ({marks})",
+                    (platform, *chunk),
+                )
+            else:
+                rows = self._query(
+                    "SELECT m.external_id FROM market_listings m JOIN watch_listings w ON w.listing_id = m.id "
+                    f"WHERE w.watch_id = ? AND m.platform = ? AND m.external_id IN ({marks})",
+                    (watch_id, platform, *chunk),
+                )
+            known.update(r["external_id"] for r in rows)
+        return known
+
     def set_listing_details(self, listing_id: int, details: dict[str, Any]) -> None:
         self._exec(
             "UPDATE market_listings SET details = ? WHERE id = ?",

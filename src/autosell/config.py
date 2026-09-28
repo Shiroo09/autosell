@@ -2,8 +2,8 @@
 
 Ayarlar ``<veri dizini>/ayarlar.json`` dosyasında tutulur ve web panelinden
 düzenlenir. API anahtarları gibi gizli değerler dosyada boş bırakılırsa ortam
-değişkenlerinden okunur (ANTHROPIC_API_KEY, OPENAI_API_KEY, TELEGRAM_BOT_TOKEN,
-TELEGRAM_CHAT_ID, AUTOSELL_PANEL_PASSWORD).
+değişkenlerinden okunur (ANTHROPIC_API_KEY, OPENAI_API_KEY, LAYA_API_KEY,
+TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, AUTOSELL_PANEL_PASSWORD).
 """
 
 from __future__ import annotations
@@ -27,6 +27,7 @@ DEFAULT_CLAUDE_MODEL = "claude-opus-5-5"
 SECRET_FIELDS: tuple[tuple[str, str], ...] = (
     ("ai", "claude_api_key"),
     ("ai", "openai_api_key"),
+    ("decision", "api_key"),
     ("notify", "telegram_token"),
     ("web", "password"),
 )
@@ -52,6 +53,24 @@ class AISettings(BaseModel):
     max_photos: int = 6
     # Fırsat değerlendirmede Claude'un web araması ile güncel fiyat araştırması
     web_research: bool = False
+
+
+class DecisionSettings(BaseModel):
+    """Hızlı karar motoru (Jev / Laya): fırsat adaylarını saniyeler içinde süzer."""
+
+    # "jev": API ağ geçidindeki TypeSafe Jev, "laya": bilgisayarda çalışan laya-serve, "kapali": kullanma
+    engine: Literal["jev", "laya", "kapali"] = "jev"
+    # Boşsa jev için yapay zekâ ağ geçidi (OpenAI base URL), laya için http://127.0.0.1:8000
+    base_url: str = ""
+    # Boşsa jev için OpenAI uyumlu API anahtarı, laya için LAYA_API_KEY (tanımlıysa) kullanılır
+    api_key: str = ""
+    # Boşsa jev için "jev", laya için "multilingual" (Türkçe için doğru model)
+    model: str = ""
+    # Her taramada hızlı kararla incelenecek en fazla aday
+    max_checks: int = 12
+    # Bu olasılığın üstündeki "aksesuar / farklı ürün / kusurlu / şüpheli" kararları ilanı eler
+    threshold: float = 0.6
+    timeout_s: float = 20.0
 
 
 class SellerSettings(BaseModel):
@@ -164,11 +183,21 @@ class BrowserSettings(BaseModel):
 
 
 class MarketSettings(BaseModel):
-    default_interval_min: int = 20
-    min_interval_min: int = 10
+    default_interval_min: int = 5
+    min_interval_min: int = 2
+    # Tarama aralıkları bu oranda (±%) rastgele kaydırılır; istekler makine düzeninde gitmez
+    interval_jitter_pct: float = 20.0
+    # Derin taramada okunacak sayfa sayısı; arada yalnızca en yeniye sıralı ilk sayfalar okunur
     max_pages: int = 2
+    quick_pages: int = 1
+    deep_scan_hours: float = 6.0
     # Her taramada detay sayfası açılacak en iyi aday sayısı
     fetch_details: int = 2
+    # Platform başına son bir saatte en fazla sayfa isteği (arama + detay). Siteye insan
+    # hızından fazla istek gitmez; aşılırsa taramalar sıraya girer. 0 = sınırsız (önerilmez).
+    hourly_request_budget: int = 60
+    # Tarama tarayıcısı resim ve video indirmez (sayfalar çok daha hızlı açılır)
+    block_images: bool = True
     # Site CAPTCHA / erişim engeli gösterirse o platformun taraması bu kadar dakika duraklatılır
     block_cooldown_min: int = 90
     # Her taramada yapay zekâ ile değerlendirilecek en iyi aday sayısı
@@ -196,6 +225,7 @@ class WebSettings(BaseModel):
 
 class Settings(BaseModel):
     ai: AISettings = Field(default_factory=AISettings)
+    decision: DecisionSettings = Field(default_factory=DecisionSettings)
     seller: SellerSettings = Field(default_factory=SellerSettings)
     writing: WritingSettings = Field(default_factory=WritingSettings)
     sahibinden: PlatformSettings = Field(default_factory=default_sahibinden)
@@ -219,6 +249,20 @@ class Settings(BaseModel):
 
     def panel_password(self) -> str:
         return self.web.password or os.environ.get("AUTOSELL_PANEL_PASSWORD", "")
+
+    def decision_endpoint(self) -> tuple[str, str, str] | None:
+        """Karar motorunun (adres, anahtar, model) üçlüsü; kapalıysa None."""
+        d = self.decision
+        if d.engine == "kapali":
+            return None
+        if d.engine == "jev":
+            base = d.base_url.strip() or self.ai.openai_base_url.strip()
+            key = d.api_key.strip() or self.ai.openai_api_key.strip() or os.environ.get("OPENAI_API_KEY", "")
+            return base, key, d.model.strip() or "jev"
+        from .ai.decision import DEFAULT_LAYA_URL
+
+        base = d.base_url.strip() or DEFAULT_LAYA_URL
+        return base, d.api_key.strip() or os.environ.get("LAYA_API_KEY", ""), d.model.strip() or "multilingual"
 
 
 @dataclass(frozen=True)
@@ -266,6 +310,8 @@ ENV_DEFAULTS: tuple[tuple[str, str, str], ...] = (
     ("OPENAI_BASE_URL", "ai", "openai_base_url"),
     ("AUTOSELL_OPENAI_MODEL", "ai", "openai_model"),
     ("AUTOSELL_CLAUDE_MODEL", "ai", "claude_model"),
+    ("AUTOSELL_DECISION_ENGINE", "decision", "engine"),
+    ("AUTOSELL_DECISION_URL", "decision", "base_url"),
 )
 
 
@@ -355,6 +401,7 @@ class SettingsStore:
         env_fallbacks = {
             ("ai", "claude_api_key"): os.environ.get("ANTHROPIC_API_KEY", ""),
             ("ai", "openai_api_key"): os.environ.get("OPENAI_API_KEY", ""),
+            ("decision", "api_key"): os.environ.get("LAYA_API_KEY", ""),
             ("notify", "telegram_token"): os.environ.get("TELEGRAM_BOT_TOKEN", ""),
             ("web", "password"): os.environ.get("AUTOSELL_PANEL_PASSWORD", ""),
         }

@@ -17,6 +17,7 @@ from typing import Any, Callable, TypeVar
 from playwright.sync_api import BrowserContext, Page, Playwright, sync_playwright
 
 from ..config import Settings
+from ..safety import SCAN_SUFFIX
 from .remote import RemoteControl
 
 log = logging.getLogger(__name__)
@@ -111,6 +112,10 @@ class BrowserWorker:
             kwargs["channel"] = s.channel
         if s.executable_path:
             kwargs["executable_path"] = s.executable_path
+        if self.platform.endswith(SCAN_SUFFIX) and self.settings_getter().market.block_images:
+            # Tarama profili (hesaptan ayrı, girişsiz) resim/video indirmez: sayfalar çok daha hızlı
+            # açılır. İstek yakalama (route) kullanılmaz; o, tarayıcı önbelleğini kapatırdı.
+            kwargs["args"] = ["--blink-settings=imagesEnabled=false", "--autoplay-policy=user-gesture-required"]
         context = pw.chromium.launch_persistent_context(**kwargs)
         self._closed_flag = False
         context.on("close", lambda *_: setattr(self, "_closed_flag", True))

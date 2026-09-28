@@ -42,5 +42,6 @@ class SahibindenAdapter(PlatformAdapter):
                 return False
         elif not snap.find_clickable(["Sonraki", "›", "»"], threshold=0.9):
             return False
-        driver.goto(page_number_param(url, "pagingOffset", target))
+        driver.goto(page_number_param(url, "pagingOffset", target),
+                    wait_for=(self.ps.card_selectors or {}).get("card") or None)
         return True

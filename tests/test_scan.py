@@ -93,7 +93,10 @@ def test_scan_watch_finds_deal_and_tracks_price_drop(market_site, tmp_path):
         scanner = MarketScanner(db, settings, provider, ui, tmp_path)
         summary = pool.worker("sahibinden").run(lambda s: scanner.scan_watch(s, watch))
         assert summary.total == 9  # kılıf dışlandı
-        assert summary.new == 9 and summary.deals >= 1 and summary.ai_reviews == 1
+        assert summary.new == 9 and summary.deals >= 1 and summary.deep
+        # Yapay zekâ incelemesi taramayı bekletmez; ayrı işte yapılır
+        assert len(summary.review_ids) == 1
+        assert scanner.review_deals(summary.review_ids)["reviewed"] == 1
 
         deals = db.list_deals()
         best_deal, best_listing = deals[0]
@@ -108,7 +111,7 @@ def test_scan_watch_finds_deal_and_tracks_price_drop(market_site, tmp_path):
         watch.search_url = f"{market_site}/arama2.html"
         db.save_watch(watch)
         summary2 = pool.worker("sahibinden").run(lambda s: scanner.scan_watch(s, watch))
-        assert summary2.new == 0 and summary2.price_changed == 1
+        assert summary2.new == 0 and summary2.price_changed == 1 and not summary2.deep
         again = db.get_deal_by_listing(best_listing.id)
         assert any("Fiyatı düştü" in r for r in again.reasons)
         assert db.get_watch(watch.id).last_status.startswith("8 ilan")

@@ -42,6 +42,10 @@ def send_telegram(token: str, chat_id: str, text: str, timeout: float = 15) -> t
 def deal_message(deal: Deal, listing: MarketListing) -> str:
     e = html.escape
     risks = "".join(f"\n⚠️ {e(f.text)}" for f in deal.risk_flags[:3])
+    fast = ""
+    if deal.fast and not deal.fast.get("elendi") and deal.fast.get("ayni_urun") is not None:
+        fast = (f"\n⚡ Hızlı kontrol ({e(str(deal.fast.get('motor') or ''))}): aynı ürün "
+                f"%{round(deal.fast['ayni_urun'] * 100)}, kusur %{round((deal.fast.get('kusurlu') or 0) * 100)}")
     ai = ""
     if deal.ai and deal.ai.get("yorum"):
         ai = f"\n🤖 {e(str(deal.ai['yorum'])[:300])}"
@@ -51,5 +55,18 @@ def deal_message(deal: Deal, listing: MarketListing) -> str:
         f"💰 Fiyat: {format_price(listing.price)} | Piyasa: {format_price(deal.est_value)}\n"
         f"📈 Tahmini kâr: {format_price(deal.est_profit)} (%{(deal.margin_pct or 0):.0f})\n"
         f"📍 {e(listing.location or '-')}"
-        f"{risks}{ai}\n{e(listing.url)}"
+        f"{risks}{fast}{ai}\n{e(listing.url)}"
+    )
+
+
+def deal_update_message(deal: Deal, listing: MarketListing) -> str:
+    """Bildirilen fırsat yapay zekâ incelemesinden sonra fırsat sayılmadığında gönderilir."""
+    e = html.escape
+    reason = ""
+    if deal.ai and deal.ai.get("yorum"):
+        reason = f"\n🤖 {e(str(deal.ai['yorum'])[:300])}"
+    risks = "".join(f"\n⚠️ {e(f.text)}" for f in deal.risk_flags[:3])
+    return (
+        f"↩️ <b>Düzeltme:</b> az önce bildirilen ilan yapay zekâ incelemesinde fırsat sayılmadı.\n"
+        f"<b>{e(listing.title)}</b> — {format_price(listing.price)}{risks}{reason}\n{e(listing.url)}"
     )

@@ -231,10 +231,20 @@ class PageDriver:
             pass
         self.page.wait_for_timeout(350)
 
-    def goto(self, url: str) -> int | None:
-        """Sayfayı açar; HTTP durum kodunu döner (bilinmiyorsa None)."""
+    def goto(self, url: str, *, wait_for: str | None = None) -> int | None:
+        """Sayfayı açar; HTTP durum kodunu döner (bilinmiyorsa None).
+
+        wait_for (CSS seçici) verilirse ağın tamamen durulması beklenmez; seçici sayfada
+        belirir belirmez devam edilir (arama sonuçlarını hızlı okumak için)."""
         response = self.page.goto(url, wait_until="domcontentloaded", timeout=45000)
-        self.settle()
+        if wait_for:
+            try:
+                self.page.wait_for_selector(wait_for, state="attached", timeout=8000)
+                self.page.wait_for_timeout(300)
+            except PlaywrightError:  # zaman aşımı ya da geçersiz seçici: normal bekleme
+                self.settle()
+        else:
+            self.settle()
         self.dismiss_cookie_banner()
         return response.status if response is not None else None
 

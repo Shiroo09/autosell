@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from .ai import AINotConfigured, LLMProvider, build_provider
+from .ai.decision import DecisionEngine, DecisionError
 from .ai.schemas import STR, obj
 from .automation.browser import BrowserPool, BrowserSession
 from .automation.interaction import Cancelled
@@ -17,10 +18,19 @@ from .db import Database
 from .images import save_upload
 from .jobs import Job, JobInteraction, JobManager
 from .listing import ListingGenerator, basic_listing
+from .market.fastcheck import LISTING_QUESTIONS
 from .market.notify import send_telegram
-from .market.scanner import MarketScanner
+from .market.scanner import BudgetExhausted, MarketScanner
 from .models import Draft, PlatformListing, PublicationStatus, Watch, now_iso
-from .safety import PublishBlocked, ScanBlocked, check_publish, cooldown, scan_browser, set_cooldown
+from .safety import (
+    PublishBlocked,
+    ScanBlocked,
+    check_publish,
+    cooldown,
+    request_budget,
+    scan_browser,
+    set_cooldown,
+)
 from .scheduler import WatchScheduler
 
 log = logging.getLogger(__name__)
@@ -36,6 +46,7 @@ class AutoSell:
         self.pool = BrowserPool(self.paths.browser_dir, self.settings_store.get)
         self.jobs = JobManager(self.pool)
         self.provider_override: LLMProvider | None = None
+        self.decision_override: DecisionEngine | None = None
         self.scheduler = WatchScheduler(self)
         if start_scheduler:
             self.scheduler.start()
@@ -53,6 +64,33 @@ class AutoSell:
             if required:
                 raise
             return None
+
+    def decision_ready(self) -> bool:
+        """Karar motoru açık ve kullanılabilir ayarlarda mı (Jev için API anahtarı gerekir)."""
+        settings = self.settings
+        endpoint = settings.decision_endpoint()
+        return endpoint is not None and (settings.decision.engine != "jev" or bool(endpoint[1]))
+
+    def decision_engine(self) -> DecisionEngine | None:
+        """Hızlı karar motoru (Jev / Laya); kapalıysa ya da Jev için anahtar yoksa None."""
+        if self.decision_override is not None:
+            return self.decision_override
+        if not self.decision_ready():
+            return None
+        settings = self.settings
+        base, key, model = settings.decision_endpoint()  # type: ignore[misc]
+        try:
+            return DecisionEngine(base, key, model, name=settings.decision.engine,
+                                  timeout=max(3.0, settings.decision.timeout_s))
+        except DecisionError:
+            return None
+
+    def budget_status(self) -> dict[str, dict[str, int]]:
+        out = {}
+        for platform in PLATFORMS:
+            budget = request_budget(self.db, self.settings, platform)
+            out[platform] = {"used": budget.used(), "limit": budget.per_hour, "free_in_min": budget.minutes_until()}
+        return out
 
     def shutdown(self) -> None:
         self.scheduler.stop()
@@ -245,52 +283,79 @@ class AutoSell:
         existing = self.jobs.find_active("scan", watch_id=watch_id)
         if existing:
             return existing
-        paused = self.scan_cooldown(watch.platform)
-        if paused:
-            raise ValueError(f"{PLATFORM_NAMES[watch.platform]} taraması {paused['until_local']} saatine kadar "
-                             f"duraklatıldı: {paused['reason']}")
+        self._check_scan_allowed(watch.platform)
 
         def run(job: Job, ui: JobInteraction, session: BrowserSession | None) -> dict[str, Any]:
             assert session is not None
             current = self.db.get_watch(watch_id)
             if not current:
                 raise KeyError("Takip listesi silinmiş.")
-            scanner = MarketScanner(self.db, self.settings, self.provider(required=False), ui, self.paths.shots_dir)
+            engine = self.decision_engine()
+            scanner = MarketScanner(self.db, self.settings, None, ui, self.paths.shots_dir, decision=engine,
+                                    budget=request_budget(self.db, self.settings, current.platform))
             try:
-                return scanner.scan_watch(session, current).to_dict()
+                summary = scanner.scan_watch(session, current)
             except ScanBlocked as exc:
                 message = self._mark_blocked(current.platform, str(exc))
-                failed = self.db.get_watch(watch_id)
-                if failed:
-                    failed.last_run_at = now_iso()
-                    failed.last_status = message[:200]
-                    self.db.save_watch(failed)
+                self._scan_failed(watch_id, message)
                 raise RuntimeError(message) from exc
+            except BudgetExhausted:
+                raise  # zaman işlenmez: bütçe açılınca zamanlayıcı yeniden dener
             except Exception as exc:
-                failed = self.db.get_watch(watch_id)
-                if failed:  # hatada da zamanı işle ki zamanlayıcı siteyi sıkıştırmasın
-                    failed.last_run_at = now_iso()
-                    failed.last_status = f"Hata: {str(exc)[:160]}"
-                    self.db.save_watch(failed)
+                self._scan_failed(watch_id, f"Hata: {str(exc)[:160]}")  # zamanlayıcı siteyi sıkıştırmasın
                 raise
+            finally:
+                if engine is not None and engine is not self.decision_override:
+                    engine.close()
+            if summary.review_ids:
+                self.start_review(summary.review_ids, current.platform)
+            return summary.to_dict()
 
         title = f"{'⏱ ' if scheduled else ''}Tarama: {watch.name}"
         return self.jobs.submit("scan", title, run, browser=scan_browser(watch.platform), platform=watch.platform,
                                 watch_id=watch_id)
+
+    def _check_scan_allowed(self, platform: str) -> None:
+        name = PLATFORM_NAMES[platform]
+        paused = self.scan_cooldown(platform)
+        if paused:
+            raise ValueError(f"{name} taraması {paused['until_local']} saatine kadar duraklatıldı: {paused['reason']}")
+        budget = request_budget(self.db, self.settings, platform)
+        if budget.left() < 1:
+            raise ValueError(f"{name} için saatlik güvenli istek sınırı doldu ({budget.per_hour}/saat). Hesabınızı "
+                             f"ve IP adresinizi korumak için yaklaşık {budget.minutes_until()} dakika sonra tekrar "
+                             "deneyin (sınır: Ayarlar > Fırsat Avcısı).")
+
+    def _scan_failed(self, watch_id: int, message: str) -> None:
+        failed = self.db.get_watch(watch_id)
+        if failed:
+            failed.last_run_at = now_iso()
+            failed.last_status = message[:200]
+            self.db.save_watch(failed)
+
+    def start_review(self, deal_ids: list[int], platform: str | None = None) -> Job | None:
+        """Fırsatların yapay zekâ incelemesi: tarayıcı gerektirmez, taramayı bekletmez."""
+        provider = self.provider(required=False)
+        if provider is None or not deal_ids:
+            return None
+
+        def run(job: Job, ui: JobInteraction, _session: BrowserSession | None) -> dict[str, Any]:
+            scanner = MarketScanner(self.db, self.settings, provider, ui, self.paths.shots_dir)
+            return scanner.review_deals(deal_ids)
+
+        return self.jobs.submit("review", f"Yapay zekâ incelemesi ({len(deal_ids)} fırsat)", run, platform=platform)
 
     def start_research(self, platform: str, query: str = "", url: str = "", draft_id: str | None = None) -> Job:
         if platform not in PLATFORMS:
             raise ValueError(f"Bilinmeyen platform: {platform}")
         if not query.strip() and not url.strip():
             raise ValueError("Arama kelimesi ya da bağlantı girin.")
-        paused = self.scan_cooldown(platform)
-        if paused:
-            raise ValueError(f"{PLATFORM_NAMES[platform]} erişimi {paused['until_local']} saatine kadar "
-                             f"duraklatıldı: {paused['reason']}")
+        self._check_scan_allowed(platform)
 
         def run(job: Job, ui: JobInteraction, session: BrowserSession | None) -> dict[str, Any]:
             assert session is not None
-            scanner = MarketScanner(self.db, self.settings, None, ui, self.paths.shots_dir)
+            scanner = MarketScanner(self.db, self.settings, None, ui, self.paths.shots_dir,
+                                    budget=request_budget(self.db, self.settings, platform))
             try:
                 return scanner.research(session, platform, query=query.strip(), url=url.strip())
             except ScanBlocked as exc:
@@ -325,6 +390,30 @@ class AutoSell:
         )
         return {"ok": True, "provider": provider.describe(), "answer": data.get("cevap", "")}
 
+    def test_decision(self) -> dict[str, Any]:
+        """Karar motoruna örnek bir ilan sorar (kutu + şarj aleti ilanı "aksesuar" çıkmalı)."""
+        import time
+
+        engine = self.decision_engine()
+        if engine is None:
+            if self.settings.decision.engine == "kapali":
+                raise DecisionError("Hızlı karar motoru kapalı.")
+            raise DecisionError("Jev için API anahtarı yok (Yapay Zekâ bölümündeki OpenAI uyumlu anahtar "
+                                "ya da bu bölümdeki anahtar kullanılır).")
+        state = {"aranan": "iPhone 13 128 GB",
+                 "ilan": {"baslik": "iPhone 13 128 GB kutusu ve şarj aleti", "fiyat": "1.500 TL",
+                          "aciklama": "Sadece kutu ve orijinal şarj aleti satılıktır, telefon yoktur."},
+                 "emsal_ilanlar": ["Apple iPhone 13 128 GB Mavi", "iPhone 13 128GB Gece Yarısı"]}
+        started = time.monotonic()
+        try:
+            answers = engine.decide(state, LISTING_QUESTIONS)
+        finally:
+            if engine is not self.decision_override:
+                engine.close()
+        kind = (answers.get("ilan_turu") or {}).get("choice")
+        return {"ok": True, "engine": engine.describe(), "ms": round((time.monotonic() - started) * 1000),
+                "answer": kind, "correct": kind == "aksesuar_parca"}
+
     def test_telegram(self) -> tuple[bool, str]:
         s = self.settings
         return send_telegram(s.telegram_token(), s.telegram_chat_id(), "✅ AutoSell bildirim testi başarılı.")
@@ -336,7 +425,8 @@ class AutoSell:
         if watch_id and not base:
             raise KeyError(f"Takip listesi bulunamadı: {watch_id}")
         merged = {**base, **{k: v for k, v in data.items() if k not in ("id", "last_run_at", "last_status",
-                                                                        "last_found", "created_at")}}
+                                                                        "last_found", "created_at",
+                                                                        "last_deep_scan_at")}}
         watch = Watch.model_validate(merged)
         watch.id = watch_id
         watch.interval_min = max(watch.interval_min, self.settings.market.min_interval_min)

@@ -16,6 +16,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .. import __version__
 from ..ai import AIError, AINotConfigured
+from ..ai.decision import DecisionError
 from ..config import PLATFORM_NAMES, PLATFORMS
 from ..listing import rules_for, score_title
 from ..models import DealStatus
@@ -185,6 +186,8 @@ def create_app(app_service: AutoSell | None = None) -> FastAPI:
             },
             "seller_ready": bool(s.seller.city and s.seller.district),
             "cooldowns": {p: service.scan_cooldown(p) for p in PLATFORMS if service.scan_cooldown(p)},
+            "budgets": service.budget_status(),
+            "decision": {"engine": s.decision.engine, "ready": service.decision_ready()},
         }
 
     @api.get("/api/settings")
@@ -205,6 +208,13 @@ def create_app(app_service: AutoSell | None = None) -> FastAPI:
         try:
             return service.test_ai()
         except AIError as exc:
+            raise HTTPException(400, str(exc)) from exc
+
+    @api.post("/api/settings/test-decision")
+    def test_decision() -> dict[str, Any]:
+        try:
+            return service.test_decision()
+        except DecisionError as exc:
             raise HTTPException(400, str(exc)) from exc
 
     @api.get("/api/settings/models")

@@ -5,12 +5,15 @@
 - Platform başına 24 saatte en fazla ilan sayısı ve iki ilan arası en az bekleme süresi.
 - Aynı ya da çok benzer ilanın kısa sürede tekrar verilmesi (mükerrer ilan) engellenir.
 - Site CAPTCHA / erişim engeli gösterirse o platformun taraması bir süre duraklatılır.
+- Platform başına saatlik sayfa isteği bütçesi: tarama hızı insan hızını aşmaz.
 """
 
 from __future__ import annotations
 
 import json
 import math
+import threading
+import time
 from datetime import datetime, timedelta, timezone
 
 from .config import PLATFORM_NAMES, Settings
@@ -135,3 +138,64 @@ def cooldown(db: Database, platform: str, now: datetime | None = None) -> dict[s
         clear_cooldown(db, platform)
         return None
     return {"until": data["until"], "until_local": _local(until), "reason": data.get("reason", "")}
+
+
+# ------------------------------------------------------------ saatlik istek bütçesi
+
+_budget_lock = threading.Lock()
+
+
+class RequestBudget:
+    """Platform başına son bir saatteki sayfa isteklerini (arama + detay) sayar.
+
+    Sınır dolunca yeni taramalar sıraya girer; siteye insan hızından fazla istek gitmez ve
+    IP adresiniz "olağan dışı erişim" için işaretlenmez. 0 ya da negatif sınır = sınırsız.
+    """
+
+    WINDOW_S = 3600.0
+
+    def __init__(self, db: Database, platform: str, per_hour: int):
+        self.db = db
+        self.platform = platform
+        self.per_hour = per_hour
+        self.key = f"istek:{platform}"
+
+    def _stamps(self, now: float) -> list[float]:
+        raw = self.db.get_state(self.key)
+        try:
+            stamps = [float(t) for t in json.loads(raw)] if raw else []
+        except (ValueError, TypeError):
+            stamps = []
+        return sorted(t for t in stamps if now - t < self.WINDOW_S)
+
+    def used(self, now: float | None = None) -> int:
+        return len(self._stamps(now if now is not None else time.time()))
+
+    def left(self, now: float | None = None) -> int:
+        if self.per_hour <= 0:
+            return 1_000_000
+        return max(0, self.per_hour - self.used(now))
+
+    def take(self, n: int = 1, now: float | None = None) -> bool:
+        """n istek hakkı ayırır; bütçe yetmiyorsa hiçbir şey ayırmadan False döner."""
+        now = now if now is not None else time.time()
+        with _budget_lock:
+            stamps = self._stamps(now)
+            if self.per_hour > 0 and len(stamps) + n > self.per_hour:
+                return False
+            stamps += [now] * n
+            self.db.set_state(self.key, json.dumps([round(t, 1) for t in stamps[-max(self.per_hour, 1) - n:]]))
+            return True
+
+    def minutes_until(self, n: int = 1, now: float | None = None) -> int:
+        """n istek hakkının açılmasına kalan dakika."""
+        now = now if now is not None else time.time()
+        stamps = self._stamps(now)
+        if self.per_hour <= 0 or len(stamps) + n <= self.per_hour:
+            return 0
+        oldest_needed = stamps[len(stamps) + n - self.per_hour - 1]
+        return max(1, math.ceil((oldest_needed + self.WINDOW_S - now) / 60))
+
+
+def request_budget(db: Database, settings: Settings, platform: str) -> RequestBudget:
+    return RequestBudget(db, platform, settings.market.hourly_request_budget)
