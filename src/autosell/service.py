@@ -391,8 +391,11 @@ class AutoSell:
         return {"ok": True, "provider": provider.describe(), "answer": data.get("cevap", "")}
 
     def test_decision(self) -> dict[str, Any]:
-        """Karar motoruna örnek bir ilan sorar (kutu + şarj aleti ilanı "aksesuar" çıkmalı)."""
+        """Karar motorunu 4 örnek ilanla sınar (temiz ilan, kutu ilanı, farklı model, kapora).
+        Türkçe ilanlarda güvenilir olmayan bir motor (ör. eğitilmemiş Laya) böylece hemen görülür."""
         import time
+
+        from .ai.decision import choice, noul
 
         engine = self.decision_engine()
         if engine is None:
@@ -400,19 +403,41 @@ class AutoSell:
                 raise DecisionError("Hızlı karar motoru kapalı.")
             raise DecisionError("Jev için API anahtarı yok (Yapay Zekâ bölümündeki OpenAI uyumlu anahtar "
                                 "ya da bu bölümdeki anahtar kullanılır).")
-        state = {"aranan": "iPhone 13 128 GB",
-                 "ilan": {"baslik": "iPhone 13 128 GB kutusu ve şarj aleti", "fiyat": "1.500 TL",
-                          "aciklama": "Sadece kutu ve orijinal şarj aleti satılıktır, telefon yoktur."},
-                 "emsal_ilanlar": ["Apple iPhone 13 128 GB Mavi", "iPhone 13 128GB Gece Yarısı"]}
+        comps = ["Apple iPhone 13 128 GB Mavi", "iPhone 13 128GB Gece Yarısı Kutulu", "iPhone 13 128 GB Yıldız Işığı"]
+        cases = [  # (başlık, fiyat, açıklama, beklenen: tür, aynı ürün, kusurlu, şüpheli)
+            ("iPhone 13 128 GB Mavi Temiz", "27.500 TL", "Tek elden, sorunsuz, kutulu faturalı.", ("urun", True, False, False)),
+            ("iPhone 13 128 GB kutusu ve şarj aleti", "1.500 TL", "Sadece kutu ve orijinal şarj aleti, telefon yoktur.",
+             ("aksesuar_parca", None, None, None)),
+            ("iPhone 13 mini 128 GB", "21.000 TL", "Temiz, kutulu.", ("urun", False, False, False)),
+            ("iPhone 13 128 GB sıfır ayarında", "15.000 TL", "Kapora gönderin kargoya vereyim, önce ödeme.",
+             ("urun", True, False, True)),
+        ]
+        correct = total = 0
+        first_kind = None
         started = time.monotonic()
         try:
-            answers = engine.decide(state, LISTING_QUESTIONS)
+            for title, price, desc, expected in cases:
+                state = {"aranan": "iPhone 13 128 GB", "ilan": {"baslik": title, "fiyat": price, "aciklama": desc},
+                         "emsal_ilanlar": comps}
+                answers = engine.decide(state, LISTING_QUESTIONS)
+                kind, _ = choice(answers, "ilan_turu")
+                first_kind = first_kind or kind
+                got = (kind, (noul(answers, "ayni_urun") or 0) >= 0.5, (noul(answers, "kusurlu") or 0) >= 0.5,
+                       (noul(answers, "supheli") or 0) >= 0.5)
+                for exp, val in zip(expected, got):
+                    if exp is not None:
+                        total += 1
+                        correct += int(exp == val)
         finally:
             if engine is not self.decision_override:
                 engine.close()
-        kind = (answers.get("ilan_turu") or {}).get("choice")
-        return {"ok": True, "engine": engine.describe(), "ms": round((time.monotonic() - started) * 1000),
-                "answer": kind, "correct": kind == "aksesuar_parca"}
+        ms = round((time.monotonic() - started) * 1000 / len(cases))
+        reliable = correct >= total - 1
+        return {"ok": True, "engine": engine.describe(), "ms": ms, "answer": first_kind, "correct": correct,
+                "total": total, "reliable": reliable,
+                "verdict": ("Türkçe ilanlarda güvenilir görünüyor." if reliable else
+                            "Bu motor Türkçe ilanlarda güvenilir değil; iyi fırsatları da eleyebilir. "
+                            "Jev'i kullanın ya da motoru kapatın.")}
 
     def test_telegram(self) -> tuple[bool, str]:
         s = self.settings

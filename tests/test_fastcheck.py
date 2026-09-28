@@ -48,12 +48,15 @@ def fake_jev(calls: list | None = None, fail_status: int | None = None) -> httpx
         if fail_status:
             return httpx.Response(fail_status, json={"error": {"message": "olmadı"}})
         title = body["state"]["ilan"]["baslik"].lower()
+        desc = str(body["state"]["ilan"].get("aciklama", "")).lower()
         if "kutusu" in title:
             answers = _answers("aksesuar_parca", same=0.3)
-        elif "mor renk" in title:  # kuralların göremediği model farkını taklit eder
+        elif "mor renk" in title or "mini" in title:  # kuralların göremediği model farkını taklit eder
             answers = _answers(same=0.05)
         elif "kilitli" in title:
             answers = _answers(faulty=0.97)
+        elif "kapora" in desc:
+            answers = _answers(shady=0.9)
         else:
             answers = _answers()
         return httpx.Response(200, json={"model": "jev", "answers": answers, "usage": {}})
@@ -338,7 +341,15 @@ def test_decision_test_endpoint(tmp_path):
     client = TestClient(create_app(app), headers={"X-AutoSell": "1"})
     try:
         r = client.post("/api/settings/test-decision").json()
-        assert r["ok"] and r["answer"] == "aksesuar_parca" and r["correct"]
+        assert r["ok"] and r["reliable"] and r["correct"] == r["total"] == 13
+
+        # Her şeye "alım/takas" diyen (eğitilmemiş) bir motor güvenilmez olarak raporlanır
+        def always_trade(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, json={"answers": _answers("alim_takas", same=0.9, faulty=0.8, shady=0.8)})
+
+        app.decision_override = DecisionEngine("http://127.0.0.1:8000", transport=httpx.MockTransport(always_trade))
+        r = client.post("/api/settings/test-decision").json()
+        assert not r["reliable"] and r["correct"] < r["total"] and "güvenilir değil" in r["verdict"]
         app.decision_override = None
         app.settings_store.update({"decision": {"engine": "kapali"}})
         r = client.post("/api/settings/test-decision")

@@ -170,6 +170,8 @@ Motor yoksa ya da cevap vermezse tarama, kural tabanlı puanlamayla kesintisiz d
 
 **Laya (bilgisayarında, ücretsiz, açık kaynak):** Jev'in açık kaynak karşılığıdır (Apache-2.0). Aynı `/v1/systemone` protokolünü konuştuğu için ayarı "Laya" yapman yeterli.
 
+> **Ölçüm (Eylül 2026, 20 Türkçe ilan, 56 karar, üründeki sorular):** Jev 56/56 doğru, ilan başına ~0,6 sn. Laya'nın hazır `multilingual` modeli (4 çekirdekli işlemcide, ekran kartsız) 16/56 doğru, ilan başına ~0,6 sn; farklı soru biçimleriyle de %27–34'te kaldı. Yani Laya **eğitilmeden** kullanılırsa iyi fırsatları da eler. Laya ancak kendi etiketli ilanlarınla eğitilirse ([ince ayar not defteri](https://github.com/NandhaKishorM/laya/blob/main/notebooks/laya_finetune_typed_decisions_2xT4_kaggle.ipynb), Kaggle'ın ücretsiz GPU'suyla) işe yarar. **Motoru test et** düğmesi 4 örnek ilanla seçili motorun güvenilirliğini ölçer ve güvenilir değilse uyarır.
+
 ```bash
 python -m pip install "laya[serve]"          # Python 3.10+; PyTorch ile birlikte gelir
 LAYA_MODELS=multilingual laya-serve          # http://127.0.0.1:8000 (Türkçe için multilingual)
@@ -177,7 +179,7 @@ LAYA_MODELS=multilingual laya-serve          # http://127.0.0.1:8000 (Türkçe i
 ```
 
 - **Sistem gereksinimi:** 64 bit Windows / macOS / Linux, Python 3.10+, en az 8 GB RAM (16 GB önerilir), ~3–5 GB disk (PyTorch + ~1,3 GB model; ilk açılışta Hugging Face'ten indirilir, sonra internetsiz çalışır).
-- **Ekran kartı şart değil.** İşlemcide soru başına yaklaşık 0,1–0,5 sn sürer. NVIDIA ekran kartında (4 GB+ VRAM, `LAYA_DEVICE=cuda`) ya da Apple Silicon'da (M1–M4) ~10–35 ms'ye iner.
+- **Ekran kartı şart değil.** 4 çekirdekli işlemcide ilan başına (4 soru) ~0,6 sn ölçüldü. NVIDIA ekran kartında (4 GB+ VRAM, `LAYA_DEVICE=cuda`) ya da Apple Silicon'da (M1–M4) soru başına ~10–35 ms'ye iner.
 - Yalnız işlemci kullanacaksan önce küçük PyTorch sürümünü kurabilirsin: `pip install torch --index-url https://download.pytorch.org/whl/cpu`.
 - `LAYA_API_KEY` ile başlatırsan aynı anahtarı Ayarlar'daki API anahtarı alanına gir.
 

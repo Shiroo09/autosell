@@ -321,7 +321,7 @@ export async function mount(root, ctx) {
       <form class="set-unit ${isPlatform ? 'is-sub' : ''}" data-unit="${d.key}" novalidate>
         ${d.title ? html`<h3 class="set-unit-title"><i class="pdot pdot-${d.key}"></i>${d.title}</h3>` : ''}
         ${d.key === 'web' ? html`${callout({ tone: 'info', icon: 'phone', title: 'Telefondan erişim', text: html`Paneli aynı Wi-Fi ağındaki telefonunuzdan açmak için şifre gereklidir. Şifreyi belirledikten sonra AutoSell’i <code>autosell panel --host 0.0.0.0</code> ile başlatın ve telefonunuzdan bilgisayarın yerel IP adresine girin (ör. <code>http://192.168.1.20:8000</code>).` })}` : ''}
-        ${d.key === 'decision' && u.values.engine === 'laya' ? html`${callout({ tone: 'info', icon: 'monitor', title: 'Laya’yı bilgisayarınızda çalıştırma', text: html`Python 3.10+ ile <code>pip install "laya[serve]"</code> kurun, sonra <code>LAYA_MODELS=multilingual laya-serve</code> komutuyla başlatın (Windows: <code>set LAYA_MODELS=multilingual</code> ardından <code>laya-serve</code>). İlk açılışta model (~1,3 GB) indirilir; 8 GB RAM yeterlidir, ekran kartı şart değildir.` })}` : ''}
+        ${d.key === 'decision' && u.values.engine === 'laya' ? html`${callout({ tone: 'info', icon: 'monitor', title: 'Laya’yı bilgisayarınızda çalıştırma', text: html`Python 3.10+ ile <code>pip install "laya[serve]"</code> kurun, sonra <code>LAYA_MODELS=multilingual laya-serve</code> komutuyla başlatın (Windows: <code>set LAYA_MODELS=multilingual</code> ardından <code>laya-serve</code>). İlk açılışta model (~1,3 GB) indirilir; 8 GB RAM yeterlidir, ekran kartı şart değildir.<br><strong>Dikkat:</strong> Laya’nın hazır (eğitilmemiş) modeli Türkçe ilan testimizde kararların yalnızca ~%30’unu doğru verdi (Jev: %100). Kendi verinizle eğitmediyseniz Jev’i kullanın; “Motoru test et” düğmesi güvenilirliği ölçer.` })}` : ''}
         <div class="stack">${fieldsHtml(u, d.fields)}</div>
         <div class="set-job" data-unit-job></div>
         <footer class="set-foot">
@@ -712,8 +712,9 @@ export async function mount(root, ctx) {
     setBusy(b, true, 'Test ediliyor…');
     try {
       const r = await api.post('/api/settings/test-decision');
-      const verdict = r.correct ? 'örnek “kutu + şarj aleti” ilanını doğru olarak aksesuar saydı' : `örnek ilana “${r.answer}” dedi`;
-      toast.success(`${r.ms} ms’de cevap verdi; ${verdict}.`, { title: `Karar motoru çalışıyor · ${r.engine}` });
+      const text = `4 örnek ilanda ${r.total} kararın ${r.correct} tanesi doğru; ilan başına ${r.ms} ms. ${r.verdict}`;
+      if (r.reliable) toast.success(text, { title: `Karar motoru çalışıyor · ${r.engine}` });
+      else toast.error(text, { title: 'Karar motoru güvenilir değil', timeout: 12000 });
     } catch (e) {
       toast.error(e.message || 'Bağlantı kurulamadı.', { title: 'Karar motoru testi başarısız' });
     } finally {

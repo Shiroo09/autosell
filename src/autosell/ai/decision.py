@@ -104,7 +104,9 @@ class DecisionEngine:
             if resp.status_code in (401, 403):
                 raise DecisionError("Karar motoru API anahtarını kabul etmedi.")
             if resp.status_code >= 400:
-                raise DecisionError(f"Karar motoru hatası (HTTP {resp.status_code}): {_error_detail(resp)}")
+                hint = (" Sunucu bu karar modelini şu an sunamıyor olabilir (geçici arıza ya da kota); "
+                        "tarama kural tabanlı puanlamayla sürer." if resp.status_code in (400, 404, 502, 503) else "")
+                raise DecisionError(f"Karar motoru hatası (HTTP {resp.status_code}): {_error_detail(resp)}.{hint}")
             try:
                 answers = resp.json().get("answers")
             except ValueError as exc:
