@@ -8,7 +8,6 @@ version = "0.1.0"
 description = "Sahibinden ve Letgo için yapay zekâ destekli otomatik ilan verme ve al-sat fırsat avcısı"
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "MIT" }
 authors = [{ name = "Shiro" }]
 dependencies = [
     "anthropic>=1.9",

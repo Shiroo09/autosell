@@ -24,8 +24,22 @@ CARDS_JS = r"""
   const regs = (args.patterns || []).map(p => new RegExp(p));
   const sel = args.selectors || {};
   const clean = s => (s || '').replace(/[\s ]+/g, ' ').trim();
-  const lines = el => (el.innerText || '').split('\n').map(clean).filter(Boolean);
-  const PRICE = /(\d{1,3}(?:[.\s ]\d{3})+|\d+)(?:,\d{1,2})?\s*(TL|₺|USD|EUR|\$|€)|(₺|TL)\s*\d/i;
+  // Metin parçaları: CSS düzeninden bağımsız olarak her metin düğümü ayrı parça
+  const lines = (root) => {
+    const out = [];
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
+    let node, last = null, buf = '';
+    while ((node = walker.nextNode())) {
+      const parent = node.parentElement;
+      if (!parent || ['SCRIPT', 'STYLE', 'NOSCRIPT'].includes(parent.tagName)) continue;
+      const t = clean(node.nodeValue);
+      if (!t) continue;
+      if (parent === last) { buf += ' ' + t; } else { if (buf) out.push(buf); buf = t; last = parent; }
+    }
+    if (buf) out.push(buf);
+    return out;
+  };
+  const PRICE =/(\d{1,3}(?:[.\s ]\d{3})+|\d+)(?:,\d{1,2})?\s*(TL|₺|USD|EUR|\$|€)|(₺|TL)\s*\d/i;
   const idFromHref = (href) => { for (const r of regs) { const m = (href || '').match(r); if (m) return m[1]; } return null; };
   const imgOf = (card) => {
     const img = card.querySelector('img');
@@ -69,10 +83,14 @@ CARDS_JS = r"""
     }
     if (!card) continue;
     seen.add(id);
-    // aynı ilana giden bağlantılar arasında en uzun metinli olan başlıktır
-    const sameLinks = Array.from(card.querySelectorAll('a[href]')).filter(x => idFromHref(x.href) === id);
-    const bestLink = sameLinks.map(x => clean(x.getAttribute('title') || x.innerText)).sort((p, r) => r.length - p.length)[0] || '';
-    out.push({ id, url: a.href, title: bestLink, price: '', location: '', date: '', image: imgOf(card), lines: lines(card).slice(0, 14), source: 'generic' });
+    // Başlık: bağlantının title özniteliği ya da kart içindeki başlık öğesi; yoksa Python tarafı seçer
+    const sameLinks = [card, ...card.querySelectorAll('a[href]')].filter(x => x.matches && x.matches('a[href]') && idFromHref(x.href) === id);
+    let title = sameLinks.map(x => clean(x.getAttribute('title') || '')).find(Boolean) || '';
+    if (!title) {
+      const heading = card.querySelector('h1, h2, h3, h4, [class*="title" i], [class*="baslik" i]');
+      if (heading) title = clean(heading.innerText || heading.textContent);
+    }
+    out.push({ id, url: a.href, title, price: '', location: '', date: '', image: imgOf(card), lines: lines(card).slice(0, 14), source: 'generic' });
   }
   return out;
 }
@@ -145,7 +163,7 @@ def parse_card(raw: dict[str, Any], platform: str) -> ScrapedListing | None:
     if not location:
         location = next((ln for ln in lines if _is_location_line(ln)), "")
     if not date_text:
-        date_text = next((ln for ln in lines if _is_date_line(ln) and not parse_price(ln)[0]), "")
+        date_text = next((ln for ln in lines if _is_date_line(ln) and not re.search(r"TL|₺|\$|€", ln)), "")
     if not title or len(title) < 4:
         rest = [ln for ln in lines if ln not in (price_text, location, date_text) and not re.search(r"TL|₺", ln)]
         title = max(rest, key=len, default=title)

@@ -141,7 +141,23 @@ class PlatformAdapter:
         url = snap.url.lower()
         if any(k in url for k in ("/giris", "/login", "signin", "/oturum")):
             return True
-        return has_password_field(snap)
+        if has_password_field(snap):
+            return True
+        # Şifresiz (telefon + SMS kodu) giriş pencereleri
+        text = snap.norm_text
+        login_words = ("giris yap", "uye girisi", "oturum ac", "hesabina giris", "telefon numarani")
+        phone_field = any(
+            f.kind in ("tel", "text", "number") and not f.in_chrome and not f.hidden
+            and any(w in normalize(f"{f.clean_label} {f.placeholder} {f.name}") for w in ("telefon", "gsm", "cep"))
+            for f in snap.fields
+        )
+        return phone_field and any(w in text for w in login_words) and not self.has_listing_form(snap)
+
+    def needs_login(self, snap: Snapshot, state: "FlowState") -> bool:
+        if self.looks_like_login(snap):
+            return True
+        # Sayfada "Giriş Yap" düğmesi görünüyorsa oturum kapalıdır; ilan vermek için giriş şart.
+        return not state.form_done and self.login_state(snap) is False
 
     def is_logged_in(self, driver: PageDriver) -> bool:
         snap = driver.snapshot()
@@ -205,7 +221,7 @@ class PlatformAdapter:
         driver.goto(self.ps.home_url)
         snap = driver.snapshot()
         btn = snap.find_clickable(
-            self.post_button_texts, threshold=0.8, include_chrome=True, exclude=is_payment_clickable
+            self.post_button_texts, threshold=0.9, include_chrome=True, exclude=is_payment_clickable
         )
         if not btn:
             raise PublishError(
@@ -480,10 +496,11 @@ class PlatformAdapter:
                     done=lambda: not is_captcha(driver.snapshot()), page=driver.page, timeout_s=timeout,
                 )
                 continue
-            if self.looks_like_login(snap):
+            if self.needs_login(snap, state):
+                self.log(f"🔐 {self.display_name} oturumu kapalı görünüyor.")
                 self.interaction.wait_for_human(
                     f"{self.display_name} hesabınıza giriş yapmanız gerekiyor. Lütfen tarayıcıda giriş yapın.",
-                    done=lambda: not self.looks_like_login(driver.snapshot()), page=driver.page, timeout_s=timeout,
+                    done=lambda: not self.needs_login(driver.snapshot(), state), page=driver.page, timeout_s=timeout,
                 )
                 driver.settle()
                 after = driver.snapshot()
