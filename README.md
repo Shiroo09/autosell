@@ -8,13 +8,16 @@ Fotoğraflarını yükle ve birkaç satır not yaz; gerisini AutoSell hazırlar:
 - **İlgi çeken açıklama:** Açıklama düzenli, dürüst ve ikna edicidir. Telefon, link ve e-posta gibi kurallara aykırı içerik otomatik temizlenir.
 - **Kategori ve özellikler:** Kategori yolu ve tüm ilan özellikleri (hafıza, renk, garanti, kimden, takas…) otomatik doldurulur. Formdaki seçenekler canlı okunur. Eşleşmeyen alanları yapay zekâ, yalnızca sitenin sunduğu seçenekler arasından seçer.
 - **Otomatik ilan verme:** Kendi tarayıcı oturumunla Sahibinden ve Letgo'da ilan verir: kategori, form, fotoğraf, adres, önizleme. Doping ve öne çıkarma adımları ücretsiz geçilir.
-- **Fırsat avcısı:** Takip listelerindeki yeni ilanları tarar ve emsal ilanlarla fiyat araştırması yapar. Tahmini kâr, marj ve risk puanıyla al-sat fırsatlarını bulur, istersen Telegram'dan bildirir.
+- **Fırsat avcısı:** Takip listelerindeki yeni ilanları tarar ve emsal ilanlarla fiyat araştırması yapar. Tahmini kâr, marj ve risk puanıyla al-sat fırsatlarını bulur, istersen Telegram'dan bildirir. Tarama hızlıdır: derin taramalar arasında yalnızca en yeni ilanlar okunur, tarama tarayıcısı resim indirmez ve fırsat bulunur bulunmaz bildirim gider.
+- **Hızlı karar motoru (Jev / Laya):** Her fırsat adayını saniyeler içinde süzer. Yalnızca kutu, kılıf ya da parça satan ilanları, emsallerden farklı modelleri (13 ↔ 13 mini, PS5 Disk ↔ Dijital), arızalı ya da kilitli cihazları ve kapora isteyen ilanları eler.
 - **Web paneli:** Mobil ve masaüstü uyumludur, telefonun ana ekranına eklenebilir (PWA) ve karanlık modu destekler.
 - **Yapay zekâ sağlayıcısı:** OpenAI uyumlu her API desteklenir. Varsayılan olarak `betaapiv2.llmapi.art` üzerindeki **muse-spark-1.3** modeli kullanılır; OpenAI, OpenRouter, Groq, DeepSeek, yerel Ollama ve LM Studio da seçilebilir. İstenirse Claude (Anthropic) kullanılabilir.
 
 > ⚠️ **Önemli:** Sahibinden ve Letgo'nun kullanım koşulları otomasyon araçlarını kısıtlayabilir. Araç yalnızca **kendi hesabınla, kendi ilanların için** tasarlandı ve sorumluluk kullanıcıya aittir.
 >
-> - Siteyi yormamak için yavaş, insan hızında çalışır.
+> - Siteyi yormamak için insan hızında çalışır. Platform başına saatlik sayfa isteği sınırı (varsayılan 60) vardır.
+> - **Tarama ve fiyat araştırması hesabınla yapılmaz:** hiç giriş yapılmamış, ayrı bir tarayıcı profili kullanılır. Site taramayı kısıtlarsa hesabın etkilenmez; tarama bir süre kendiliğinden duraklatılır.
+> - İlan verirken günlük ilan sınırı, iki ilan arası bekleme süresi ve mükerrer ilan koruması uygulanır.
 > - CAPTCHA'yı atlatmaya ya da tarayıcı parmak izini gizlemeye çalışmaz. Giriş, SMS kodu ve CAPTCHA adımlarını sana bırakır.
 > - **Hiçbir ödemeyi yapmaz.** Ödeme sayfası görünürse durur.
 > - Varsayılan olarak son **"Yayınla"** düğmesinden önce senden onay ister.
@@ -107,7 +110,10 @@ Sitelerin HTML yapısı sık değiştiği için AutoSell sabit CSS seçicilerine
 ### 3. Fırsat avcısı (al-sat)
 
 1. **Takip listesi ekle:** arama kelimesi ya da sitede filtreleyip (kategori, şehir, fiyat, "sahibinden") kopyaladığın **arama bağlantısı**. En güvenilir yol bağlantıyı yapıştırmaktır.
-2. Zamanlayıcı her listeyi ayarlanan aralıkla (varsayılan 15 dk, en az 5 dk) tarar ve ilanları veritabanına kaydeder. **Fiyat düşüşleri** de izlenir.
+2. Zamanlayıcı her listeyi ayarlanan aralıkla (varsayılan 5 dk, en az 2 dk; aralıklar ±%20 rastgele kaydırılır) tarar ve ilanları veritabanına kaydeder. **Fiyat düşüşleri** de izlenir. Hız için:
+   - İlk tarama ve her 6 saatte bir **derin tarama** yapılır (birkaç sayfa). Arada yalnızca en yeniye sıralı **ilk sayfa** okunur. Sayfanın tamamı yeni ilansa bir sonraki sayfaya da bakılır, böylece hiçbir yeni ilan kaçmaz.
+   - Tarama tarayıcısı resim ve video indirmez. Kartlar sayfada belirir belirmez okunur.
+   - Siteye giden her sayfa isteği platformun **saatlik bütçesinden** düşülür (varsayılan 60). Bütçe dolunca taramalar sıraya girer.
 3. Her yeni ya da ucuzlayan ilan için **emsal ilanlardan piyasa değeri** hesaplanır:
    - Başlıklar karşılaştırılır; kapasite (128 GB ≠ 256 GB), sürüm (Pro/Max/Plus), model numarası ve aksesuar/parça farkları elenir.
    - Aykırı fiyatlar IQR ile atılır.
@@ -129,8 +135,10 @@ Sitelerin HTML yapısı sık değiştiği için AutoSell sabit CSS seçicilerine
    - "piyasanın yarısının altında" fiyat
 
    "Değişensiz", "hasar kaydı yok" gibi olumsuz kalıplar risk sayılmaz.
-6. En iyi adayların detay sayfası açılır ve açıklamadaki riskler de değerlendirilir. İsteğe bağlı olarak **yapay zekâ** ilanı tüccar gözüyle yorumlar: gerçekten aynı ürün mü, riskler, pazarlık teklifi. Claude ile istenirse **web araması** yaparak güncel sıfır ve ikinci el fiyatları da kontrol eder.
-7. Eşiği geçen fırsatlar panelde listelenir, ayarlandıysa **Telegram**'dan bildirilir.
+6. **Hızlı karar motoru** (Jev ya da Laya, aşağıya bak) en iyi adayları birkaç saniyede inceler. Aksesuar/parça ilanlarını, emsallerden farklı modelleri, arızalı ya da kilitli cihazları ve kapora/kayıt dışı şüphesi taşıyan ilanları eler. Elenen ilanların detay sayfası hiç açılmaz.
+7. Kalan en iyi adayların detay sayfası açılır ve açıklamadaki riskler de değerlendirilir (açıklamayla hızlı karar yeniden verilir).
+8. Eşiği geçen fırsatlar panelde listelenir, ayarlandıysa **hemen Telegram**'dan bildirilir.
+9. Ardından, taramayı bekletmeden, **yapay zekâ** en iyi fırsatları tüccar gözüyle yorumlar: gerçekten aynı ürün mü, riskler, pazarlık teklifi. Claude ile istenirse **web araması** yaparak güncel sıfır ve ikinci el fiyatları da kontrol eder. Bildirilen bir ilan bu incelemede fırsat sayılmazsa düzeltme bildirimi gider.
 
 **Fiyat araştırması:** Kendi ilanın için "Fiyat araştır" düğmesi ya da **Fiyat Araştırması** ekranı benzer ilanları tarar. Hızlı satış, piyasa ve üst fiyat önerileriyle birlikte fiyat dağılımını gösterir.
 
@@ -144,6 +152,34 @@ Sitelerin HTML yapısı sık değiştiği için AutoSell sabit CSS seçicilerine
 | **Claude** | Model `claude-opus-5-5`, efor `high` | Resmi `anthropic` SDK'sı; yapılandırılmış çıktı, görsel analiz, web araştırması. Güvenlik sınıflandırıcısı reddederse Anthropic'in önerdiği modelle sunucu tarafında yeniden dener (`fallbacks: "default"`; Ayarlar'dan kapatılabilir). Anahtar: panel ya da `ANTHROPIC_API_KEY`. |
 
 Yerel ve küçük modellerde başlık/açıklama kalitesi düşebilir. Görsel analiz için görsel destekli bir model (ör. `llama3.2-vision`, `qwen2.5-vl`) seç.
+
+## Hızlı karar motoru (Jev / Laya)
+
+Büyük dil modelleri (muse-spark, Claude) ilan yazmakta iyidir ama bir ilanı incelemeleri 10–60 saniye sürer. Karar modelleri ise metin yazmaz: bir duruma (ilana) sorulan yazılı sorulara tek adımda **olasılıklı** cevap verir. AutoSell her fırsat adayına dört soruyu tek istekte sorar:
+
+| Soru | Tür | Eleme |
+|---|---|---|
+| Satılan ne? (ürünün kendisi / aksesuar-parça / alım-takas / başka) | seçim | ürün değilse |
+| Emsal ilanlarla aynı model ve kapasite mi? | evet/hayır | olasılık ≤ %40 ise |
+| Arızalı, hasarlı, kilitli, ağır hasar kayıtlı ya da parça olarak mı? | evet/hayır | olasılık ≥ %60 ise |
+| Kapora/ön ödeme, kayıt dışı (IMEI) ya da replika şüphesi var mı? | evet/hayır | olasılık ≥ %60 ise |
+
+Motor yoksa ya da cevap vermezse tarama, kural tabanlı puanlamayla kesintisiz devam eder. Aynı ilan için karar tekrar sorulmaz (önbellek).
+
+**Jev (varsayılan, kurulum gerektirmez):** TypeSafe'in karar modeli. Yapay zekâ bölümündeki OpenAI uyumlu sunucu `POST /v1/systemone` uç noktasını sunuyorsa (varsayılan `betaapiv2.llmapi.art` sunuyor) aynı API anahtarıyla çalışır. Ağ gecikmesi dahil ilan başına ~1–2 sn sürer, adaylar 4'er paralel sorulur. Ayarlar → Hızlı Karar Motoru → **Motoru test et** ile dene.
+
+**Laya (bilgisayarında, ücretsiz, açık kaynak):** Jev'in açık kaynak karşılığıdır (Apache-2.0). Aynı `/v1/systemone` protokolünü konuştuğu için ayarı "Laya" yapman yeterli.
+
+```bash
+python -m pip install "laya[serve]"          # Python 3.10+; PyTorch ile birlikte gelir
+LAYA_MODELS=multilingual laya-serve          # http://127.0.0.1:8000 (Türkçe için multilingual)
+# Windows PowerShell: $env:LAYA_MODELS="multilingual"; laya-serve
+```
+
+- **Sistem gereksinimi:** 64 bit Windows / macOS / Linux, Python 3.10+, en az 8 GB RAM (16 GB önerilir), ~3–5 GB disk (PyTorch + ~1,3 GB model; ilk açılışta Hugging Face'ten indirilir, sonra internetsiz çalışır).
+- **Ekran kartı şart değil.** İşlemcide soru başına yaklaşık 0,1–0,5 sn sürer. NVIDIA ekran kartında (4 GB+ VRAM, `LAYA_DEVICE=cuda`) ya da Apple Silicon'da (M1–M4) ~10–35 ms'ye iner.
+- Yalnız işlemci kullanacaksan önce küçük PyTorch sürümünü kurabilirsin: `pip install torch --index-url https://download.pytorch.org/whl/cpu`.
+- `LAYA_API_KEY` ile başlatırsan aynı anahtarı Ayarlar'daki API anahtarı alanına gir.
 
 ## Komut satırı
 
@@ -176,11 +212,13 @@ urunler/
   - `ayarlar.json`: ayarlar; panelden düzenlenir, API anahtarları burada saklanır, dosya yalnız senin kullanıcına açıktır
   - `autosell.db`: taslaklar, takip listeleri, piyasa ilanları, fiyat geçmişi, fırsatlar (SQLite)
   - `ilanlar/<id>/`: yüklenen fotoğraflar (EXIF ve GPS bilgisi silinerek kaydedilir)
-  - `tarayici/<platform>/`: tarayıcı oturumları. **Bu klasörü kimseyle paylaşma.**
+  - `tarayici/<platform>/`: ilan verdiğin hesabın tarayıcı oturumu. **Bu klasörü kimseyle paylaşma.**
+  - `tarayici/<platform>-tarama/`: tarama ve fiyat araştırması için kullanılan, hiç giriş yapılmamış ayrı profil
   - `ekran/`: yayın öncesi/sonrası ve hata ekran görüntüleri
 - Ortam değişkenleri (`.env` dosyası da okunur):
-  - Gizli alanlar: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `AUTOSELL_PANEL_PASSWORD`. Ayar dosyasında boş bırakılan gizli alanlar bunlardan okunur.
-  - Varsayılanlar: `AUTOSELL_AI_PROVIDER`, `OPENAI_BASE_URL`, `AUTOSELL_OPENAI_MODEL`, `AUTOSELL_CLAUDE_MODEL`. Panelden kaydedilen ayarlar bunların önüne geçer.
+  - Gizli alanlar: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `LAYA_API_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `AUTOSELL_PANEL_PASSWORD`. Ayar dosyasında boş bırakılan gizli alanlar bunlardan okunur.
+  - Varsayılanlar: `AUTOSELL_AI_PROVIDER`, `OPENAI_BASE_URL`, `AUTOSELL_OPENAI_MODEL`, `AUTOSELL_CLAUDE_MODEL`, `AUTOSELL_DECISION_ENGINE` (`jev` / `laya` / `kapali`), `AUTOSELL_DECISION_URL`. Panelden kaydedilen ayarlar bunların önüne geçer.
+- **Hız ve güvenlik ayarları** (Ayarlar → Fırsat Avcısı): tarama aralıkları, saatlik istek sınırı, resimsiz tarama, engelde duraklatma süresi, derin/hızlı taramada okunacak sayfa sayısı. Platform başına günlük ilan sınırı, iki ilan arası bekleme ve mükerrer ilan süresi: Ayarlar → Platformlar.
 - **Site değişirse:** Ayarlar → Platformlar → Gelişmiş bölümünden ilan verme adresi, arama adresi şablonu, ilan bağlantısı kalıpları ve arama sonucu kart seçicileri kod değiştirmeden güncellenebilir.
 - **Tarayıcı:** `headless` (görünmez mod), `channel: "chrome"` (bilgisayarda kurulu Chrome'u kullan), eylemler arası bekleme süreleri ve kullanıcı müdahalesi zaman aşımı ayarlanabilir.
 
