@@ -28,6 +28,7 @@ from .config import PLATFORM_NAMES, PLATFORMS
 from .images import ALLOWED_SUFFIXES
 from .listing import ListingGenerator
 from .market.scanner import MarketScanner
+from .safety import PublishBlocked, check_publish, scan_browser
 from .service import AutoSell
 from .textutil import format_price
 
@@ -150,9 +151,15 @@ def cmd_olustur(app: AutoSell, args: argparse.Namespace) -> int:
     return 0
 
 
-def _publish(app: AutoSell, draft_id: str, platform: str, auto: bool) -> bool:
+def _publish(app: AutoSell, draft_id: str, platform: str, auto: bool, force: bool = False) -> bool:
     ui = ConsoleInteraction(auto_yes=auto)
     draft = app.draft_or_404(draft_id)
+    try:
+        check_publish(app.db, app.settings, draft, platform, force=force)
+    except PublishBlocked as exc:
+        print(f"⛔ {PLATFORM_NAMES[platform]}: {exc}" + (" (geçmek için --zorla)" if exc.code in
+                                                        ("duplicate", "already_published") else ""))
+        return False
     adapter = get_adapter(platform, app.settings, app.provider(required=False), ui, app.paths.shots_dir)
     if auto:
         adapter.ps.auto_publish = True
@@ -166,6 +173,9 @@ def _publish(app: AutoSell, draft_id: str, platform: str, auto: bool) -> bool:
         return False
     app._set_publication(draft_id, platform, "yayinda", url=result.url, listing_no=result.listing_no,
                          message=result.message)
+    listing = draft.listings.get(platform)
+    app.db.log_publish(platform, draft_id, listing.title if listing else draft.display_title(), result.url,
+                       result.listing_no)
     print(f"✔ {PLATFORM_NAMES[platform]}: {result.message} {result.url}")
     return True
 
@@ -174,7 +184,7 @@ def cmd_yayinla(app: AutoSell, args: argparse.Namespace) -> int:
     draft = app.draft_or_404(args.taslak)
     ok = True
     for platform in args.platform or draft.platforms:
-        ok = _publish(app, draft.id, platform, args.otomatik) and ok
+        ok = _publish(app, draft.id, platform, args.otomatik, args.zorla) and ok
     return 0 if ok else 1
 
 
@@ -215,7 +225,8 @@ def cmd_tara(app: AutoSell, args: argparse.Namespace) -> int:
             print("Aktif takip listesi yok. Panelden ya da 'autosell panel' ile ekleyin.")
         for watch in watches:
             scanner = MarketScanner(app.db, app.settings, app.provider(required=False), ui, app.paths.shots_dir)
-            summary = app.pool.worker(watch.platform).run(lambda s, w=watch: scanner.scan_watch(s, w), label="tarama")
+            summary = app.pool.worker(scan_browser(watch.platform)).run(
+                lambda s, w=watch: scanner.scan_watch(s, w), label="tarama")
             print(f"• {watch.name}: {summary.message}")
 
     if not args.izle:
@@ -239,7 +250,7 @@ def cmd_tara(app: AutoSell, args: argparse.Namespace) -> int:
 def cmd_arastir(app: AutoSell, args: argparse.Namespace) -> int:
     ui = ConsoleInteraction()
     scanner = MarketScanner(app.db, app.settings, None, ui, app.paths.shots_dir)
-    result = app.pool.worker(args.platform).run(
+    result = app.pool.worker(scan_browser(args.platform)).run(
         lambda s: scanner.research(s, args.platform, query=args.kelime or "", url=args.url or ""), label="araştırma"
     )
     est = result["estimate"]
@@ -291,6 +302,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("taslak", help="Taslak kimliği")
     p.add_argument("--platform", type=_platforms, default=None)
     p.add_argument("--otomatik", action="store_true", help="Son onayı sormadan yayınla")
+    p.add_argument("--zorla", action="store_true", help="Mükerrer ilan uyarısını geç (farklı bir ürünse)")
     p.set_defaults(func=cmd_yayinla)
 
     p = sub.add_parser("toplu", help="Klasördeki her ürün alt klasörünü oluşturup yayınla")

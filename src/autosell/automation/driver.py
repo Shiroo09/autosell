@@ -231,10 +231,12 @@ class PageDriver:
             pass
         self.page.wait_for_timeout(350)
 
-    def goto(self, url: str) -> None:
-        self.page.goto(url, wait_until="domcontentloaded", timeout=45000)
+    def goto(self, url: str) -> int | None:
+        """Sayfayı açar; HTTP durum kodunu döner (bilinmiyorsa None)."""
+        response = self.page.goto(url, wait_until="domcontentloaded", timeout=45000)
         self.settle()
         self.dismiss_cookie_banner()
+        return response.status if response is not None else None
 
     def snapshot(self) -> Snapshot:
         last_exc: Exception | None = None

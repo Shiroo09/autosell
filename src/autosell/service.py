@@ -20,6 +20,7 @@ from .listing import ListingGenerator, basic_listing
 from .market.notify import send_telegram
 from .market.scanner import MarketScanner
 from .models import Draft, PlatformListing, PublicationStatus, Watch, now_iso
+from .safety import PublishBlocked, ScanBlocked, check_publish, cooldown, scan_browser, set_cooldown
 from .scheduler import WatchScheduler
 
 log = logging.getLogger(__name__)
@@ -173,13 +174,16 @@ class AutoSell:
 
         return self.jobs.submit("generate", "İlan metinleri oluşturuluyor", run, draft_id=draft_id)
 
-    def start_publish(self, draft_id: str, platform: str) -> Job:
+    def start_publish(self, draft_id: str, platform: str, force: bool = False) -> Job:
         if platform not in PLATFORMS:
             raise ValueError(f"Bilinmeyen platform: {platform}")
         draft = self.draft_or_404(draft_id)
         existing = self.jobs.find_active("publish", draft_id=draft_id, platform=platform)
         if existing:
             return existing
+        if self.jobs.find_active("publish", platform=platform):
+            raise PublishBlocked("Bu platformda şu an başka bir ilan veriliyor; bitmesini bekleyin.", "busy")
+        check_publish(self.db, self.settings, draft, platform, force=force)
 
         def run(job: Job, ui: JobInteraction, session: BrowserSession | None) -> dict[str, Any]:
             assert session is not None
@@ -199,12 +203,15 @@ class AutoSell:
             self._set_publication(
                 draft_id, platform, "yayinda", url=result.url, listing_no=result.listing_no, message=result.message
             )
+            listing = current.listings.get(platform)
+            self.db.log_publish(platform, draft_id, listing.title if listing else current.display_title(),
+                                result.url, result.listing_no)
             return {"status": result.status, "url": result.url, "listing_no": result.listing_no,
                     "message": result.message, "report": result.report}
 
         name = PLATFORM_NAMES[platform]
         return self.jobs.submit("publish", f"{name}: {draft.display_title()[:50]}", run, browser=platform,
-                                draft_id=draft_id)
+                                platform=platform, draft_id=draft_id)
 
     def start_login(self, platform: str) -> Job:
         if platform not in PLATFORMS:
@@ -219,7 +226,17 @@ class AutoSell:
             adapter.login(session)
             return {"logged_in": True}
 
-        return self.jobs.submit("login", f"{PLATFORM_NAMES[platform]} girişi", run, browser=platform)
+        return self.jobs.submit("login", f"{PLATFORM_NAMES[platform]} girişi", run, browser=platform,
+                                platform=platform)
+
+    def scan_cooldown(self, platform: str) -> dict[str, str] | None:
+        return cooldown(self.db, platform)
+
+    def _mark_blocked(self, platform: str, reason: str) -> str:
+        minutes = self.settings.market.block_cooldown_min
+        until = set_cooldown(self.db, platform, minutes, reason)
+        return (f"{PLATFORM_NAMES.get(platform, platform)} erişimi kısıtladı ({reason}). Hesabınızı korumak için "
+                f"tarama {minutes} dakika duraklatıldı (≈ {until.astimezone().strftime('%H:%M')}).")
 
     def start_scan(self, watch_id: int, scheduled: bool = False) -> Job:
         watch = self.db.get_watch(watch_id)
@@ -228,6 +245,10 @@ class AutoSell:
         existing = self.jobs.find_active("scan", watch_id=watch_id)
         if existing:
             return existing
+        paused = self.scan_cooldown(watch.platform)
+        if paused:
+            raise ValueError(f"{PLATFORM_NAMES[watch.platform]} taraması {paused['until_local']} saatine kadar "
+                             f"duraklatıldı: {paused['reason']}")
 
         def run(job: Job, ui: JobInteraction, session: BrowserSession | None) -> dict[str, Any]:
             assert session is not None
@@ -237,6 +258,14 @@ class AutoSell:
             scanner = MarketScanner(self.db, self.settings, self.provider(required=False), ui, self.paths.shots_dir)
             try:
                 return scanner.scan_watch(session, current).to_dict()
+            except ScanBlocked as exc:
+                message = self._mark_blocked(current.platform, str(exc))
+                failed = self.db.get_watch(watch_id)
+                if failed:
+                    failed.last_run_at = now_iso()
+                    failed.last_status = message[:200]
+                    self.db.save_watch(failed)
+                raise RuntimeError(message) from exc
             except Exception as exc:
                 failed = self.db.get_watch(watch_id)
                 if failed:  # hatada da zamanı işle ki zamanlayıcı siteyi sıkıştırmasın
@@ -246,21 +275,29 @@ class AutoSell:
                 raise
 
         title = f"{'⏱ ' if scheduled else ''}Tarama: {watch.name}"
-        return self.jobs.submit("scan", title, run, browser=watch.platform, watch_id=watch_id)
+        return self.jobs.submit("scan", title, run, browser=scan_browser(watch.platform), platform=watch.platform,
+                                watch_id=watch_id)
 
     def start_research(self, platform: str, query: str = "", url: str = "", draft_id: str | None = None) -> Job:
         if platform not in PLATFORMS:
             raise ValueError(f"Bilinmeyen platform: {platform}")
         if not query.strip() and not url.strip():
             raise ValueError("Arama kelimesi ya da bağlantı girin.")
+        paused = self.scan_cooldown(platform)
+        if paused:
+            raise ValueError(f"{PLATFORM_NAMES[platform]} erişimi {paused['until_local']} saatine kadar "
+                             f"duraklatıldı: {paused['reason']}")
 
         def run(job: Job, ui: JobInteraction, session: BrowserSession | None) -> dict[str, Any]:
             assert session is not None
             scanner = MarketScanner(self.db, self.settings, None, ui, self.paths.shots_dir)
-            return scanner.research(session, platform, query=query.strip(), url=url.strip())
+            try:
+                return scanner.research(session, platform, query=query.strip(), url=url.strip())
+            except ScanBlocked as exc:
+                raise RuntimeError(self._mark_blocked(platform, str(exc))) from exc
 
-        return self.jobs.submit("research", f"Fiyat araştırması: {query or url}"[:80], run, browser=platform,
-                                draft_id=draft_id)
+        return self.jobs.submit("research", f"Fiyat araştırması: {query or url}"[:80], run,
+                                browser=scan_browser(platform), platform=platform, draft_id=draft_id)
 
     def research_query_for(self, draft: Draft) -> str:
         product = draft.product

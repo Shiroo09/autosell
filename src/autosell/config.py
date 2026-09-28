@@ -75,6 +75,11 @@ class PlatformSettings(BaseModel):
     enabled: bool = True
     # False ise form doldurulur, son "Yayınla" adımında kullanıcı onayı beklenir.
     auto_publish: bool = False
+    # Hesap güvenliği: son 24 saatte en fazla ilan sayısı ve iki ilan arası en az bekleme (dk)
+    max_publish_per_day: int = 5
+    min_minutes_between_publish: int = 15
+    # Aynı/çok benzer ilanın tekrar verilmesini engelleme süresi (gün; mükerrer ilan kuralı)
+    duplicate_days: int = 30
     title_max: int = 60
     description_max: int = 4000
     use_emoji: bool = False
@@ -159,11 +164,13 @@ class BrowserSettings(BaseModel):
 
 
 class MarketSettings(BaseModel):
-    default_interval_min: int = 15
-    min_interval_min: int = 5
+    default_interval_min: int = 20
+    min_interval_min: int = 10
     max_pages: int = 2
     # Her taramada detay sayfası açılacak en iyi aday sayısı
-    fetch_details: int = 3
+    fetch_details: int = 2
+    # Site CAPTCHA / erişim engeli gösterirse o platformun taraması bu kadar dakika duraklatılır
+    block_cooldown_min: int = 90
     # Her taramada yapay zekâ ile değerlendirilecek en iyi aday sayısı
     ai_evaluations: int = 2
     # Alırken yapılabilecek tahmini pazarlık indirimi (%)

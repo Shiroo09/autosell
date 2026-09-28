@@ -35,6 +35,7 @@ class Job:
     id: str = field(default_factory=lambda: new_id("is-"))
     status: str = "queued"  # queued | running | waiting | done | error | cancelled
     platform: str | None = None
+    browser: str | None = None  # işi yürüten tarayıcı profili (ör. "sahibinden" ya da "sahibinden-tarama")
     draft_id: str | None = None
     watch_id: int | None = None
     created_at: str = field(default_factory=now_iso)
@@ -69,6 +70,7 @@ class Job:
             "title": self.title,
             "status": self.status,
             "platform": self.platform,
+            "browser": self.browser,
             "draft_id": self.draft_id,
             "watch_id": self.watch_id,
             "created_at": self.created_at,
@@ -146,7 +148,7 @@ class JobManager:
         self._executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="is")
 
     def submit(self, kind: str, title: str, fn: JobFn, *, browser: str | None = None, **meta: Any) -> Job:
-        job = Job(kind=kind, title=title, platform=browser or meta.get("platform"),
+        job = Job(kind=kind, title=title, platform=meta.get("platform") or browser, browser=browser,
                   draft_id=meta.get("draft_id"), watch_id=meta.get("watch_id"))
         with self._lock:
             self._jobs[job.id] = job

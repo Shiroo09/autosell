@@ -47,7 +47,10 @@ class WatchScheduler:
         now = now or datetime.now(timezone.utc)
         settings = self.app.settings
         due = []
+        paused = {p for p in ("sahibinden", "letgo") if self.app.scan_cooldown(p)}
         for watch in self.app.db.list_watches(active_only=True):
+            if watch.platform in paused:
+                continue
             interval = max(watch.interval_min, settings.market.min_interval_min)
             last = _parse(watch.last_run_at)
             if last and (now - last).total_seconds() < interval * 60:

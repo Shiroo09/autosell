@@ -13,11 +13,12 @@ from ..ai.base import AIError, LLMProvider
 from ..automation.browser import BrowserSession
 from ..automation.driver import PageDriver
 from ..automation.guards import is_captcha
-from ..automation.interaction import Interaction
+from ..automation.interaction import HumanTimeout, Interaction
 from ..automation.platforms import get_adapter
 from ..config import Settings
 from ..db import Database
 from ..models import Deal, MarketEstimate, MarketListing, ScrapedListing, Watch, now_iso
+from ..safety import ScanBlocked
 from ..textutil import contains_phrase, format_price
 from .deals import apply_ai_review, detect_risks, evaluate_deal
 from .evaluator import ai_review
@@ -26,6 +27,10 @@ from .notify import deal_message, send_telegram
 from .pricing import estimate_market, histogram, price_suggestions, select_comps, summarize
 
 log = logging.getLogger(__name__)
+BLOCK_TEXTS = (
+    "erisim engellendi", "access denied", "too many requests", "cok fazla istek", "gecici olarak engellendi",
+    "olagan disi erisim", "olagandisi erisim", "istek sinirini", "request blocked",
+)
 
 
 @dataclass
@@ -64,14 +69,24 @@ class MarketScanner:
 
     # ------------------------------------------------------------- toplama
 
-    def _guard(self, driver: PageDriver) -> None:
-        if is_captcha(driver.snapshot()):
-            self.interaction.wait_for_human(
-                "Site güvenlik doğrulaması (CAPTCHA) istiyor. Lütfen tarayıcı penceresinde çözün.",
-                done=lambda: not is_captcha(driver.snapshot()),
-                page=driver.page,
-                timeout_s=min(300, self.settings.browser.human_timeout_s),
-            )
+    def _guard(self, driver: PageDriver, status: int | None = None) -> None:
+        """Site erişimi engellediyse (403/429, "erişim engellendi") ya da CAPTCHA çözülmezse
+        ScanBlocked fırlatır; böylece o platformun taraması bir süre duraklatılır."""
+        snap = driver.snapshot()
+        text = snap.norm_text
+        if status in (403, 429) or any(w in text for w in BLOCK_TEXTS):
+            raise ScanBlocked(f"Site erişimi kısıtladı (HTTP {status or '-'}).")
+        if is_captcha(snap):
+            try:
+                self.interaction.wait_for_human(
+                    "Site güvenlik doğrulaması (CAPTCHA) istiyor. Lütfen tarayıcıda çözün; çözülmezse "
+                    "tarama hesabınızı korumak için bir süre duraklatılacak.",
+                    done=lambda: not is_captcha(driver.snapshot()),
+                    page=driver.page,
+                    timeout_s=min(180, self.settings.browser.human_timeout_s),
+                )
+            except HumanTimeout as exc:
+                raise ScanBlocked("CAPTCHA çözülmedi.") from exc
 
     def collect(
         self,
@@ -90,8 +105,7 @@ class MarketScanner:
         driver = PageDriver(session.page(f"tarama-{platform}"), self.settings.browser, self.log)
         target = adapter.search_url(query=query, url=url, price_min=price_min, price_max=price_max)
         self.log(f"🔎 {adapter.display_name} araması açılıyor: {target}")
-        driver.goto(target)
-        self._guard(driver)
+        self._guard(driver, driver.goto(target))
         items: dict[str, ScrapedListing] = {}
         pages = max(1, max_pages or self.settings.market.max_pages)
         for page_no in range(pages):
@@ -120,9 +134,10 @@ class MarketScanner:
             return {}
         driver = PageDriver(session.page(f"detay-{listing.platform}"), self.settings.browser, self.log)
         try:
-            driver.goto(listing.url)
-            self._guard(driver)
+            self._guard(driver, driver.goto(listing.url))
             details = extract_details(driver.page)
+        except ScanBlocked:
+            raise
         except Exception as exc:  # detay alınamazsa tarama sürsün
             self.log(f"Detay sayfası okunamadı ({listing.external_id}): {str(exc)[:100]}")
             return {}

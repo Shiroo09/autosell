@@ -19,6 +19,7 @@ from ..ai import AIError, AINotConfigured
 from ..config import PLATFORM_NAMES, PLATFORMS
 from ..listing import rules_for, score_title
 from ..models import DealStatus
+from ..safety import SCAN_SUFFIX, PublishBlocked, clear_cooldown
 from ..service import AutoSell
 
 log = logging.getLogger(__name__)
@@ -130,6 +131,11 @@ def create_app(app_service: AutoSell | None = None) -> FastAPI:
     async def not_found(_request: Request, exc: KeyError) -> JSONResponse:
         return JSONResponse({"detail": str(exc).strip("'\"")}, status_code=404)
 
+    @api.exception_handler(PublishBlocked)
+    async def publish_blocked(_request: Request, exc: PublishBlocked) -> JSONResponse:
+        # 409: kural gereği durduruldu; "duplicate"/"already_published" için arayüz "Yine de yayınla" sunar
+        return JSONResponse({"detail": str(exc), "code": exc.code}, status_code=409)
+
     @api.exception_handler(ValueError)
     async def bad_value(_request: Request, exc: ValueError) -> JSONResponse:
         return JSONResponse({"detail": str(exc)}, status_code=400)
@@ -178,6 +184,7 @@ def create_app(app_service: AutoSell | None = None) -> FastAPI:
                 for p in PLATFORMS
             },
             "seller_ready": bool(s.seller.city and s.seller.district),
+            "cooldowns": {p: service.scan_cooldown(p) for p in PLATFORMS if service.scan_cooldown(p)},
         }
 
     @api.get("/api/settings")
@@ -277,8 +284,9 @@ def create_app(app_service: AutoSell | None = None) -> FastAPI:
         return service.start_generate(draft_id).to_dict()
 
     @api.post("/api/drafts/{draft_id}/publish")
-    def publish(draft_id: str, platform: str = Body(..., embed=True)) -> dict[str, Any]:
-        return service.start_publish(draft_id, platform).to_dict()
+    def publish(draft_id: str, payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
+        return service.start_publish(draft_id, str(payload.get("platform", "")),
+                                     force=bool(payload.get("force", False))).to_dict()
 
     @api.post("/api/drafts/{draft_id}/research")
     def draft_research(draft_id: str, platform: str = Body("sahibinden", embed=True)) -> dict[str, Any]:
@@ -338,10 +346,11 @@ def create_app(app_service: AutoSell | None = None) -> FastAPI:
 
     # ------------------------------------------------------------ uzaktan tarayıcı
 
-    def _remote(platform: str):  # type: ignore[no-untyped-def]
-        if platform not in PLATFORMS:
+    def _remote(key: str):  # type: ignore[no-untyped-def]
+        # key: hesap profili ("sahibinden") ya da tarama profili ("sahibinden-tarama")
+        if key.removesuffix(SCAN_SUFFIX) not in PLATFORMS:
             raise HTTPException(404, "Bilinmeyen platform")
-        return service.pool.worker(platform).remote
+        return service.pool.worker(key).remote
 
     @api.get("/api/browser/{platform}/state")
     def remote_state(platform: str) -> dict[str, Any]:
@@ -370,6 +379,13 @@ def create_app(app_service: AutoSell | None = None) -> FastAPI:
     @api.post("/api/platforms/{platform}/login")
     def platform_login(platform: str) -> dict[str, Any]:
         return service.start_login(platform).to_dict()
+
+    @api.delete("/api/platforms/{platform}/cooldown")
+    def platform_cooldown_clear(platform: str) -> dict[str, Any]:
+        if platform not in PLATFORMS:
+            raise HTTPException(404, "Bilinmeyen platform")
+        clear_cooldown(service.db, platform)
+        return {"ok": True}
 
     # ------------------------------------------------------------ takip & fırsatlar
 

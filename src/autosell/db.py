@@ -66,6 +66,20 @@ CREATE TABLE IF NOT EXISTS deals (
     data TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_deals_score ON deals(is_deal, status, score);
+CREATE TABLE IF NOT EXISTS publish_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    platform TEXT NOT NULL,
+    draft_id TEXT NOT NULL,
+    title TEXT NOT NULL DEFAULT '',
+    url TEXT NOT NULL DEFAULT '',
+    listing_no TEXT NOT NULL DEFAULT '',
+    published_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_publish_log ON publish_log(platform, published_at);
+CREATE TABLE IF NOT EXISTS kv (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
 """
 
 _LISTING_COLUMNS = (
@@ -347,6 +361,39 @@ class Database:
             (status, deal.updated_at, deal.model_dump_json(exclude={"id"}), deal_id),
         )
         return deal
+
+    # ----------------------------------------------------------- yayın kaydı
+
+    def log_publish(self, platform: str, draft_id: str, title: str, url: str = "", listing_no: str = "",
+                    published_at: str | None = None) -> None:
+        self._exec(
+            "INSERT INTO publish_log(platform, draft_id, title, url, listing_no, published_at) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (platform, draft_id, title, url, listing_no, published_at or now_iso()),
+        )
+
+    def publish_history(self, platform: str, since: str | None = None) -> list[dict[str, Any]]:
+        sql = "SELECT platform, draft_id, title, url, listing_no, published_at FROM publish_log WHERE platform = ?"
+        params: list[Any] = [platform]
+        if since:
+            sql += " AND published_at >= ?"
+            params.append(since)
+        return [dict(r) for r in self._query(sql + " ORDER BY published_at DESC", params)]
+
+    # ------------------------------------------------------- basit durum deposu
+
+    def set_state(self, key: str, value: str | None) -> None:
+        if value is None:
+            self._exec("DELETE FROM kv WHERE key = ?", (key,))
+        else:
+            self._exec(
+                "INSERT INTO kv(key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                (key, value),
+            )
+
+    def get_state(self, key: str) -> str | None:
+        rows = self._query("SELECT value FROM kv WHERE key = ?", (key,))
+        return rows[0]["value"] if rows else None
 
     # --------------------------------------------------------------- istatistik
 
