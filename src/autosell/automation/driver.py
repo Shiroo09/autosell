@@ -68,6 +68,8 @@ class Field:
     def clean_label(self) -> str:
         label = re.sub(r"[*:]+", " ", self.label)
         label = re.sub(r"\((zorunlu|isteğe bağlı|opsiyonel)\)", " ", label, flags=re.IGNORECASE)
+        label = re.sub(r"\b\d+\s*/\s*\d+\b", " ", label)  # karakter sayaçları: 0/70
+        label = re.sub(r"(?i)\b(en fazla|en az)\s+\d+\s+karakter\b", " ", label)
         return re.sub(r"\s+", " ", label).strip()
 
     @property
