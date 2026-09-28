@@ -28,7 +28,7 @@ button, input, select, textarea { font: inherit; }
 .sub-header a { color: #555; }
 
 /* ---------- generic layout ---------- */
-.page-content { padding: 20px 0 40px; }
+.page-content { padding-top: 20px; padding-bottom: 40px; }
 .box { background: #fff; border: 1px solid #dedede; border-radius: 2px; padding: 18px 20px; margin-bottom: 16px; }
 .page-title { font-size: 20px; margin: 0 0 6px; }
 .page-desc { color: #666; margin: 0 0 14px; }
@@ -263,7 +263,7 @@ tr.nativeAd .sponsored-label { display: inline-block; background: #f5a623; color
   .home-layout, .search-layout { flex-direction: column; }
   .home-categories, .search-left { width: 100%; flex: 0 0 auto; }
   .category-column { flex: 0 0 200px; width: 200px; }
-  .form-row { flex-direction: column; gap: 4px; }
+  .form-row { flex-direction: column; gap: 4px; align-items: stretch; }
   .form-label { flex: 0 0 auto; padding-top: 0; }
   .form-field input[type="text"] { width: 100%; }
   .form-field select { min-width: 0; width: 100%; }

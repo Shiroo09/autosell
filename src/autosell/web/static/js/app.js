@@ -300,6 +300,31 @@ document.addEventListener('click', (e) => {
   if (e.target.closest('#banners')) handleJobClicks(e);
 });
 
+// Yüklenemeyen görseller: data-fallback="remove-parent" ise kapsayıcıyı kaldır, değilse
+// görseli yer tutucuyla değiştir (dosya adı varsa gösterilir).
+document.addEventListener('error', (e) => {
+  const img = e.target;
+  if (!(img instanceof HTMLImageElement) || !img.hasAttribute('data-fallback')) return;
+  const mode = img.getAttribute('data-fallback');
+  if (mode === 'remove-parent') {
+    img.parentElement && img.parentElement.remove();
+    return;
+  }
+  if (mode === 'remove') {
+    img.remove();
+    return;
+  }
+  const span = document.createElement('span');
+  span.className = 'img-fallback';
+  span.innerHTML = icon('image', { size: 20 }).s;
+  if (mode) {
+    const t = document.createElement('small');
+    t.textContent = mode.length > 22 ? `${mode.slice(0, 20)}…` : mode;
+    span.appendChild(t);
+  }
+  img.replaceWith(span);
+}, true);
+
 window.addEventListener('scroll', () => {
   const bar = document.querySelector('.topbar');
   if (bar) bar.classList.toggle('is-scrolled', window.scrollY > 4);

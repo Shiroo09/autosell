@@ -3,6 +3,7 @@ import { api, enc } from './api.js';
 import { html, el, $, $$, fmtRel, timeAgo, fmtPrice, safeUrl, platformName, refreshTimes } from './util.js';
 import { icon } from './icons.js';
 import { toast, openSheet, setBusy, spinner, showError } from './ui.js';
+import { openRemoteControl } from './remote.js';
 
 const ACTIVE = new Set(['queued', 'running', 'waiting']);
 export const isActive = (job) => !!job && ACTIVE.has(job.status);
@@ -54,6 +55,12 @@ export function friendlyError(msg = '') {
   }
   if (/Timeout \d+ms exceeded/i.test(first)) return 'Sayfa zamanında yanıt vermedi (zaman aşımı). Tekrar deneyin.';
   return first.length > 240 ? `${first.slice(0, 237)}…` : first || 'Bilinmeyen hata.';
+}
+
+/** Bekleyen tarayıcı işi için "buradan kontrol et" düğmesi. */
+export function remoteButton(job, cls = 'btn-sm') {
+  if (!job || !job.platform || job.status !== 'waiting') return '';
+  return html`<button type="button" class="btn ${cls} btn-soft" data-remote="${job.id}">${icon('phone', { size: 16 })}<span>Tarayıcıyı buradan kontrol et</span></button>`;
 }
 
 /** İş bitince tek satırlık özet. */
@@ -263,6 +270,7 @@ function renderBanners(list) {
         ${j.prompt.type === 'human' ? html`<span class="banner-hint">AutoSell'in çalıştığı bilgisayardaki tarayıcı penceresinde adımı tamamlayın; algılanınca kendiliğinden devam edilecek.</span>` : ''}
       </div>
       <div class="banner-actions">
+        ${remoteButton(j)}
         ${j.prompt.type === 'confirm'
           ? html`<button type="button" class="btn btn-sm btn-primary" data-reopen="${j.id}">Yanıtla</button>`
           : html`<button type="button" class="btn btn-sm" data-drawer="${j.id}">Ayrıntılar</button>`}
@@ -300,9 +308,10 @@ export function openConfirmPrompt(job) {
       <p class="prompt-question">${job.prompt.message}</p>
       ${shot ? html`
         <a class="prompt-shot" href="${shot}" target="_blank" rel="noopener" title="Ekran görüntüsünü büyüt">
-          <img src="${shot}" alt="Tarayıcıda doldurulan formun ekran görüntüsü" loading="lazy" onerror="this.closest('.prompt-shot').remove()" />
+          <img src="${shot}" alt="Tarayıcıda doldurulan formun ekran görüntüsü" loading="lazy" data-fallback="remove-parent" />
         </a>` : ''}
-      <p class="muted small">Form, AutoSell'in çalıştığı bilgisayardaki tarayıcıda dolduruldu. İsterseniz son kontrolü o pencereden yapıp yayınlamayı orada da tamamlayabilirsiniz.</p>`,
+      <p class="muted small">Form, AutoSell'in çalıştığı bilgisayardaki tarayıcıda dolduruldu. İsterseniz son kontrolü o pencereden yapıp yayınlamayı orada da tamamlayabilirsiniz.</p>
+      ${job.platform ? html`<div class="prompt-remote">${remoteButton(job, '')}</div>` : ''}`,
     footer: html`
       <button type="button" class="btn" data-answer="no">Hayır, yayınlama</button>
       <button type="button" class="btn btn-primary" data-answer="yes" autofocus>${icon('check', { size: 18 })}<span>Evet, yayınla</span></button>`,
@@ -313,6 +322,9 @@ export function openConfirmPrompt(job) {
         renderBanners(activeJobs());
       }
     },
+  });
+  sheet.body.addEventListener('click', (e) => {
+    if (e.target.closest('[data-remote]')) openRemoteFor(job.id);
   });
   sheet.foot.addEventListener('click', async (e) => {
     const b = e.target.closest('[data-answer]');
@@ -333,8 +345,34 @@ export function openConfirmPrompt(job) {
   return sheet;
 }
 
+/** Bekleyen işin tarayıcısını panelden kontrol etme penceresini açar. */
+export async function openRemoteFor(jobId) {
+  let job = state.active.get(jobId);
+  if (!job) {
+    try {
+      job = await api(`/api/jobs/${enc(jobId)}?since=0`);
+    } catch (e) {
+      showError(e);
+      return null;
+    }
+  }
+  if (!job.platform) {
+    toast.error('Bu iş bir tarayıcıya bağlı değil.');
+    return null;
+  }
+  return openRemoteControl(job, {
+    onAnswer: (value) => respondJob(job.id, value),
+    subscribe: (fn) => onJobsChange(fn),
+  });
+}
+
 /** Şerit ve çekmecedeki düğmeler için genel tıklama işleyicisi. */
 export function handleJobClicks(e) {
+  const remote = e.target.closest('[data-remote]');
+  if (remote) {
+    openRemoteFor(remote.dataset.remote);
+    return true;
+  }
   const reopen = e.target.closest('[data-reopen]');
   if (reopen) {
     const job = state.active.get(reopen.dataset.reopen);
@@ -468,7 +506,10 @@ export function jobCard(jobOrId, opts = {}) {
                 <button type="button" class="btn btn-sm" data-answer="no">Hayır</button>
                 <button type="button" class="btn btn-sm btn-primary" data-answer="yes">${icon('check', { size: 16 })}<span>Evet, yayınla</span></button>
                 ${job.has_screenshot ? html`<button type="button" class="btn btn-sm btn-ghost" data-reopen="${job.id}">${icon('image', { size: 16 })}<span>Ekran görüntüsü</span></button>` : ''}
-              </div>` : html`<p class="muted small">AutoSell'in çalıştığı bilgisayardaki tarayıcı penceresinde tamamlayın.</p>`}
+              </div>
+              <div class="job-prompt-actions">${remoteButton(job)}</div>` : html`
+              <p class="muted small">AutoSell'in çalıştığı bilgisayardaki tarayıcı penceresinde tamamlayın ya da buradan kontrol edin.</p>
+              <div class="job-prompt-actions">${remoteButton(job)}</div>`}
           </div>
         </div>` : ''}
       ${stuck ? html`<p class="job-note">${icon('clock', { size: 16 })}<span>İş sırada bekliyor. Aynı platformda başka bir iş sürüyor olabilir ya da tarayıcı başlatılamamış olabilir (Ayarlar › Tarayıcı). Gerekirse iptal edip yeniden deneyin.</span></p>` : ''}
@@ -620,6 +661,7 @@ export function openJobsDrawer(focusId = null) {
             ${!isActive(j) ? html`<p class="job-result">${icon(j.status === 'done' ? 'checkCircle' : j.status === 'error' ? 'xCircle' : 'info', { size: 18 })}<span>${jobSummary(j)}</span></p>` : ''}
             ${logs.length ? html`<ol class="log-box">${logLines(logs)}</ol>` : html`<p class="muted small">Henüz günlük kaydı yok.</p>`}
             <div class="drow-actions">
+              ${remoteButton(j)}
               ${j.status === 'waiting' && j.prompt && j.prompt.type === 'confirm' ? html`<button type="button" class="btn btn-sm btn-primary" data-reopen="${j.id}">Yanıtla</button>` : ''}
               ${isActive(j) ? html`<button type="button" class="btn btn-sm btn-danger" data-cancel="${j.id}">${icon('stop', { size: 14 })}<span>İptal et</span></button>` : ''}
               ${link ? html`<a class="btn btn-sm" href="${link.href}" data-close>${link.label}</a>` : ''}
