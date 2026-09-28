@@ -69,6 +69,8 @@ autosell panel --host 0.0.0.0
 
 Telefonda `http://<bilgisayarın-yerel-IP'si>:8000` adresini aç. Tarayıcı menüsünden **"Ana ekrana ekle"** diyerek uygulama gibi kullanabilirsin. Şifre tanımlanmadan panel ağa açılmaz.
 
+**Uzaktan tarayıcı kontrolü:** Otomasyon giriş, SMS kodu, CAPTCHA ya da son onay için seni beklerken panelde **"📱 Tarayıcıyı buradan kontrol et"** düğmesi çıkar. Açılan pencerede tarayıcı ekranını canlı görür, dokunarak tıklar, yazı yazar ve Enter/Tab gibi tuşlara basarsın. Bilgisayarın başında olmana gerek kalmaz. Görünmez (headless) modda, örneğin bir sunucuda çalışırken de kullanılabilir.
+
 ---
 
 ## Nasıl çalışır?
@@ -191,7 +193,7 @@ urunler/
 ## Sık sorulanlar
 
 - **Tarayıcı açılıyor ama giriş istiyor:** Önce `autosell giris sahibinden` ya da paneldeki "Giriş yap" ile bir kez giriş yap. Oturum süresi dolarsa işlem giriş adımında seni bekler.
-- **CAPTCHA / SMS doğrulaması çıktı:** Panelde uyarı görünür. Tarayıcı penceresinde adımı tamamla, otomasyon kendiliğinden devam eder.
+- **CAPTCHA / SMS doğrulaması çıktı:** Panelde uyarı görünür. Adımı tarayıcı penceresinde ya da paneldeki uzaktan kontrol ekranından tamamla; otomasyon kendiliğinden devam eder.
 - **Kategori ya da bir alan yanlış seçildi:** Onaylı modda son adımda tarayıcıda düzeltip yayınlayabilirsin. Kalıcı çözüm için taslaktaki kategori yolunu ya da özellik adlarını sitedeki adlarla güncelle.
 - **Arama sayfasında ilan okunamadı:** Arama bağlantısının doğru olduğundan emin ol. Site tasarımı değiştiyse kart seçicilerini güncelle; genel bağlantı tabanlı okuma çoğu durumda yine de çalışır.
 - **Ücretli ilan / doping:** AutoSell hiçbir ödeme yapmaz. Kategori ücretliyse ödeme ekranında durur ve karar sana kalır.
