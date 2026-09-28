@@ -203,7 +203,7 @@ export async function mount(root, ctx) {
     try {
       await setDealStatus(id, next);
       data.deal.status = next;
-      renderActions();
+      render();
       const msgs = { favori: 'Favorilere eklendi.', incelendi: 'İncelendi olarak işaretlendi.', gizli: 'Fırsat gizlendi.', yeni: prev === 'gizli' ? 'Fırsat geri getirildi.' : 'İşaret kaldırıldı.' };
       toast.success(msgs[next] || 'Güncellendi.');
     } catch (err) {
