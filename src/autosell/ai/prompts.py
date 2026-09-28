@@ -38,8 +38,11 @@ Başlık adayları (her platform için 5 adet)
 karakter sınırını aşma; sınırın %70-100'ünü kullanmak idealdir.
 
 Açıklama
-- sahibinden: düzenli ve profesyonel. Kısa bir giriş cümlesinin ardından ürün özellikleri, \
-durumu (kusurlar dahil), kutu içeriği / verilecekler ve teslimat-ödeme bölümleri. Maddelerde "•" kullan.
+- İlk cümle alıcının dikkatini çeksin: ürünün en güçlü, somut artısını söyleyen kısa bir giriş \
+("İlk sahibinden, pil sağlığı %89 olan kutulu iPhone 13" gibi). Sonda nazik bir çağrı olsun \
+("Sorularınız için mesaj atabilirsiniz" gibi; iletişim bilgisi vermeden).
+- sahibinden: düzenli ve profesyonel. Girişin ardından ürün özellikleri, durumu (kusurlar dahil), \
+kutu içeriği / verilecekler ve teslimat-ödeme bölümleri. Maddelerde "•" kullan.
 - letgo: mobilde okunur; daha kısa, samimi ve net. 3-7 kısa satır ya da madde yeterli.
 - Emojiyi yalnızca platform için izin verildiğinde ve ölçülü kullan.
 - Satıcının teslimat, pazarlık ve takas tercihlerini doğal biçimde metne yerleştir; satış \

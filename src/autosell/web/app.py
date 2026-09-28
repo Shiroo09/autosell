@@ -24,6 +24,8 @@ from ..service import AutoSell
 log = logging.getLogger(__name__)
 STATIC_DIR = Path(__file__).parent / "static"
 COOKIE = "autosell_oturum"
+CSRF_HEADER = "x-autosell"
+LOCAL_HOSTS = {"127.0.0.1", "localhost", "::1", "testserver"}
 MAX_PHOTO_BYTES = 25 * 1024 * 1024
 
 
@@ -108,6 +110,16 @@ def create_app(app_service: AutoSell | None = None) -> FastAPI:
     async def auth_guard(request: Request, call_next):  # type: ignore[no-untyped-def]
         path = request.url.path
         password = service.settings.panel_password()
+        if path.startswith("/api/"):
+            # Şifresiz panel yalnızca bu bilgisayardan açılabilir (DNS rebinding koruması)
+            host = (request.headers.get("host") or "").rsplit(":", 1)[0].strip("[]").lower()
+            if not password and host not in LOCAL_HOSTS:
+                return JSONResponse({"detail": "Panele ağdan erişmek için Ayarlar'dan şifre belirleyin."},
+                                    status_code=403)
+            # Değişiklik yapan istekler özel başlık taşımalı: başka sitelerden gelen
+            # istekler (CSRF) bu başlığı CORS ön kontrolü olmadan gönderemez.
+            if request.method not in ("GET", "HEAD", "OPTIONS") and request.headers.get(CSRF_HEADER) != "1":
+                return JSONResponse({"detail": "Geçersiz istek kaynağı."}, status_code=403)
         if password and path.startswith("/api/") and path not in ("/api/auth", "/api/login"):
             token = request.cookies.get(COOKIE, "")
             if not hmac.compare_digest(token, _token(secret, password)):

@@ -30,7 +30,15 @@ def service(tmp_path):
 
 @pytest.fixture
 def client(service):
-    return TestClient(create_app(service))
+    return TestClient(create_app(service), headers={"X-AutoSell": "1"})
+
+
+def test_csrf_header_and_host_checks(service):
+    raw = TestClient(create_app(service))
+    assert raw.get("/api/drafts").status_code == 200
+    assert raw.post("/api/drafts", data={"notes": "x"}).status_code == 403  # özel başlık yok
+    evil = TestClient(create_app(service), base_url="http://kotu-site.example", headers={"X-AutoSell": "1"})
+    assert evil.get("/api/drafts").status_code == 403  # şifresiz panel yalnız yerelden
 
 
 def _wait_job(client, job_id, timeout=10):
