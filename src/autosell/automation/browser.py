@@ -29,7 +29,17 @@ class BrowserSession:
         self.context = context
         self._pages: dict[str, Page] = {}
 
-    def page(self, name: str = "main") -> Page:
+    def page(self, name: str = "main", *, close_prefix: str | None = None) -> Page:
+        """Adlandırılmış sekmeyi döndürür. close_prefix verilirse aynı önekli eski sekmeler kapatılır
+        (ör. her ilan için açılan "ilan-" sekmeleri birikmesin)."""
+        if close_prefix:
+            for other, pg in list(self._pages.items()):
+                if other != name and other.startswith(close_prefix):
+                    try:
+                        pg.close()
+                    except Exception:  # pragma: no cover
+                        pass
+                    self._pages.pop(other, None)
         page = self._pages.get(name)
         if page is None or page.is_closed():
             used = set(self._pages.values())

@@ -244,7 +244,7 @@ class PlatformAdapter:
             raise PublishError(f"Taslakta {self.display_name} için başlık/açıklama yok. Önce ilanı oluşturun.")
         if draft.price_for(self.name) is None:
             raise PublishError("İlan fiyatı girilmemiş.")
-        driver = PageDriver(session.page(f"ilan-{draft.id}"), self.settings.browser, self.log)
+        driver = PageDriver(session.page(f"ilan-{draft.id}", close_prefix="ilan-"), self.settings.browser, self.log)
         ctx = self.fill_context(draft, listing, photos)
         self.log(f"{self.display_name} ilan verme sayfası açılıyor...")
         self.open_post_page(driver)
