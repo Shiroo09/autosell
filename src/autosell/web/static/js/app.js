@@ -1,59 +1,14 @@
 // AutoSell web paneli — giriş noktası: tema, oturum, uygulama kabuğu, yönlendirici ve iş yoklaması.
 import { api, onAuthRequired, onBlocked, onConnection } from './api.js';
-import { html, el, $, $$, store, refreshTimes } from './util.js';
+import { html, $, $$, refreshTimes } from './util.js';
 import { icon } from './icons.js';
 import { toast, setBusy } from './ui.js';
 import { startRouter } from './router.js';
 import { startJobs, stopJobs, openJobsDrawer, handleJobClicks } from './jobs.js';
 import { getStatus, onStatus, invalidateStatus } from './state.js';
+import { applyTheme, toggleTheme } from './theme.js';
 
 const root = document.getElementById('app');
-
-// ------------------------------------------------------------------ tema
-
-const THEME_KEY = 'theme';
-const darkMq = window.matchMedia('(prefers-color-scheme: dark)');
-
-export function themePref() {
-  const v = store.get(THEME_KEY, 'system');
-  return v === 'light' || v === 'dark' ? v : 'system';
-}
-
-export function effectiveTheme() {
-  const pref = themePref();
-  return pref === 'system' ? (darkMq.matches ? 'dark' : 'light') : pref;
-}
-
-export function applyTheme() {
-  const eff = effectiveTheme();
-  document.documentElement.dataset.theme = eff;
-  document.documentElement.dataset.themePref = themePref();
-  const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.setAttribute('content', eff === 'dark' ? '#0f1115' : '#f4f5f8');
-  for (const b of $$('[data-theme-toggle]')) {
-    const next = eff === 'dark' ? 'Açık temaya geç' : 'Koyu temaya geç';
-    b.setAttribute('aria-label', next);
-    b.setAttribute('title', next);
-    const ic = b.querySelector('.theme-ic');
-    if (ic) ic.innerHTML = icon(eff === 'dark' ? 'sun' : 'moon', { size: 20 }).s;
-    const lb = b.querySelector('.theme-label');
-    if (lb) lb.textContent = eff === 'dark' ? 'Açık tema' : 'Koyu tema';
-  }
-}
-
-export function setThemePref(pref) {
-  store.set(THEME_KEY, pref);
-  applyTheme();
-  document.dispatchEvent(new CustomEvent('autosell:theme'));
-}
-
-darkMq.addEventListener('change', () => {
-  if (themePref() === 'system') applyTheme();
-});
-
-function toggleTheme() {
-  setThemePref(effectiveTheme() === 'dark' ? 'light' : 'dark');
-}
 
 // ------------------------------------------------------------------ marka
 
