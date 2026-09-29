@@ -112,6 +112,11 @@ def cmd_panel(app: AutoSell, args: argparse.Namespace) -> int:
     if not local:
         print("Telefonunuzdan erişmek için bilgisayarınızın yerel IP adresini kullanın, ör. http://192.168.1.20:"
               f"{args.port}")
+    if getattr(args, "ac", False):
+        import threading
+        import webbrowser
+
+        threading.Timer(2.0, lambda: webbrowser.open(url)).start()
     uvicorn.run(create_app(app), host=args.host, port=args.port, log_level="warning")
     return 0
 
@@ -285,6 +290,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--port", type=int, default=8000)
     p.add_argument("--demo", action="store_true", help="Örnek verilerle, API anahtarı olmadan dene")
     p.add_argument("--sifresiz", action="store_true", help="Ağa şifresiz açmaya izin ver (önerilmez)")
+    p.add_argument("--ac", action="store_true", help="Panel açılınca tarayıcıda otomatik aç")
     p.set_defaults(func=cmd_panel)
 
     p = sub.add_parser("giris", help="Platforma tarayıcıda giriş yap (oturum saklanır)")
@@ -329,6 +335,11 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    for stream in (sys.stdout, sys.stderr):  # Windows konsolunda emoji/Türkçe karakter çökmesin
+        try:
+            stream.reconfigure(errors="replace")  # type: ignore[union-attr]
+        except (AttributeError, ValueError):
+            pass
     try:  # çalışma klasöründeki .env dosyasını oku (API anahtarları vb.; git'e eklenmez)
         from dotenv import load_dotenv
 

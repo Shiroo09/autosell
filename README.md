@@ -26,7 +26,11 @@ Fotoğraflarını yükle ve birkaç satır not yaz; gerisini AutoSell hazırlar:
 
 ## Kurulum
 
-Gereksinim: **Python 3.10+**.
+Gereksinim: **Python 3.10+** (python.org'dan kurarken "Add python.exe to PATH" kutusunu işaretle).
+
+**En kolay yol:** proje klasöründeki **`baslat.bat`** dosyasına çift tıkla (macOS/Linux: `./baslat.sh`). İlk seferde sanal ortamı, paketleri ve otomasyon tarayıcısını kendisi kurar (birkaç dakika sürer), sonra paneli tarayıcıda açar. Sonraki açılışlarda doğrudan panel açılır; `git pull` ile güncelleme geldiğinde gereken paketleri yeniden kurar.
+
+Elle kurmak istersen:
 
 ```bash
 git clone https://github.com/Shiroo09/autosell.git
@@ -52,8 +56,10 @@ cp .env.example .env      # Windows: copy .env.example .env
 ## Hızlı başlangıç
 
 ```bash
-autosell panel            # http://127.0.0.1:8000 adresinde paneli açar
+autosell panel            # http://127.0.0.1:8000 adresinde paneli açar (--ac: tarayıcıda da açar)
 ```
+
+> `'autosell' is not recognized` / `komut bulunamadı` hatası: sanal ortam etkin değil. Yeni her komut penceresinde önce `.venv\Scripts\activate` (macOS/Linux: `source .venv/bin/activate`) çalıştır ya da doğrudan `baslat.bat`'ı kullan. Bu bir Python projesidir; `npm start` çalışmaz.
 
 1. **Ayarlar → Yapay Zekâ:** OpenAI uyumlu sağlayıcı hazır gelir (`https://betaapiv2.llmapi.art/v1`, model `muse-spark-1.3`). API anahtarını gir ve "Bağlantıyı test et" ile dene. İstersen modeli listeden değiştir ya da Claude'a geç.
 2. **Ayarlar → Satıcı Profili:** il, ilçe ve mahalleyi gir; ilan formundaki adres alanları buradan doldurulur. Takas, pazarlık ve teslimat tercihlerini de burada seç.
