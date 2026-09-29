@@ -194,15 +194,15 @@ def test_extract_json_and_conform():
 
 def test_openai_resolves_model_name_from_server_list():
     err = openai.NotFoundError(
-        "The model `muse spark 1.3` does not exist",
+        "The model `llama 3.1 8b` does not exist",
         response=httpx2.Response(404, request=httpx2.Request("POST", "https://x/v1/chat/completions")),
         body=None,
     )
     fake = _FakeOpenAI(err, _completion('{"a": "ok", "n": 1}'))
-    fake.models = SimpleNamespace(list=lambda: [SimpleNamespace(id="gpt-4o-mini"), SimpleNamespace(id="muse-spark-1.3")])
-    provider = OpenAICompatProvider(model="muse spark 1.3", base_url="https://x/v1", client=fake)
+    fake.models = SimpleNamespace(list=lambda: [SimpleNamespace(id="gpt-4o-mini"), SimpleNamespace(id="llama-3.1-8b")])
+    provider = OpenAICompatProvider(model="llama 3.1 8b", base_url="https://x/v1", client=fake)
     assert provider.generate_json(system="s", prompt="p", schema=SCHEMA)["a"] == "ok"
-    assert provider.model == "muse-spark-1.3" and fake.calls[1]["model"] == "muse-spark-1.3"
+    assert provider.model == "llama-3.1-8b" and fake.calls[1]["model"] == "llama-3.1-8b"
 
 
 def test_settings_env_defaults(tmp_path, monkeypatch):
@@ -214,3 +214,16 @@ def test_settings_env_defaults(tmp_path, monkeypatch):
     assert store.get().ai.provider == "claude" and store.get().ai.openai_model == "baska-model"
     store.update({"ai": {"provider": "openai"}})  # panelden kaydedilen değer ortamın önüne geçer
     assert store.get().ai.provider == "openai"
+
+
+def test_no_builtin_provider_until_user_adds_one(monkeypatch):
+    """Hazır sağlayıcı yok: adres girilmedikçe yapay zekâ ayarlı sayılmaz ve hiçbir yere istek gitmez."""
+    from autosell.ai import AINotConfigured, build_provider
+    from autosell.config import Settings
+
+    s = Settings()
+    assert s.ai.openai_base_url == "" and s.ai.openai_model == ""
+    with pytest.raises(AINotConfigured, match="sunucu adresini"):
+        build_provider(s)
+    s.ai.openai_base_url, s.ai.openai_model, s.ai.openai_api_key = "https://api.ornek.com/v1", "model-x", "k"
+    assert build_provider(s).model == "model-x"

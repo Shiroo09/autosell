@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 from ..config import DEFAULT_CLAUDE_MODEL, Settings
-from .base import LLMProvider
+from .base import AINotConfigured, LLMProvider
 
 
 def build_provider(settings: Settings) -> LLMProvider:
     ai = settings.ai
     if ai.provider == "openai":
         from .openai_provider import OpenAICompatProvider
+
+        if not ai.openai_base_url.strip():
+            raise AINotConfigured("Yapay zekâ ayarlı değil: Ayarlar > Yapay Zekâ bölümüne kendi sağlayıcınızın "
+                                  "sunucu adresini (base URL), API anahtarını ve modelini girin.")
 
         return OpenAICompatProvider(
             model=ai.openai_model.strip(),

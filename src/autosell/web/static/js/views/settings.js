@@ -11,7 +11,6 @@ import { themePref, setThemePref } from '../theme.js';
 // ---------------------------------------------------------------- alan tanımları
 
 const OPENAI_URLS = [
-  ['https://betaapiv2.llmapi.art/v1', 'Varsayılan sunucu'],
   ['https://api.openai.com/v1', 'OpenAI'],
   ['https://openrouter.ai/api/v1', 'OpenRouter'],
   ['http://localhost:11434/v1', 'Ollama (yerel)'],
@@ -27,8 +26,8 @@ const isClaude = (v) => v.provider === 'claude';
 
 const AI_FIELDS = [
   { key: 'provider', type: 'segmented', label: 'Sağlayıcı', options: [['openai', 'OpenAI uyumlu'], ['claude', 'Claude (Anthropic)']], hint: 'OpenAI uyumlu seçenek OpenAI, OpenRouter, Ollama, LM Studio gibi sunucularla çalışır.' },
-  { key: 'openai_base_url', type: 'text', label: 'Sunucu adresi (base URL)', list: OPENAI_URLS, quick: true, placeholder: 'https://…/v1', showIf: isOpenAI, mono: true, inputmode: 'url' },
-  { key: 'openai_model', type: 'text', label: 'Model', placeholder: 'ör. muse-spark-1.3', showIf: isOpenAI, models: true, mono: true },
+  { key: 'openai_base_url', type: 'text', label: 'Sunucu adresi (base URL)', list: OPENAI_URLS, quick: true, placeholder: 'https://…/v1', showIf: isOpenAI, mono: true, inputmode: 'url', hint: 'Kendi sağlayıcınızın adresi. Hazır adreslerden birine dokunabilir ya da kendi sunucunuzu yazabilirsiniz.' },
+  { key: 'openai_model', type: 'text', label: 'Model', placeholder: 'Sağlayıcıdaki model adı', showIf: isOpenAI, models: true, mono: true },
   { key: 'openai_api_key', type: 'secret', label: 'API anahtarı', secret: 'ai.openai_api_key', env: 'OPENAI_API_KEY', showIf: isOpenAI, hint: 'Ollama / LM Studio gibi yerel sunucular için boş bırakılabilir.' },
   { key: 'openai_vision', type: 'switch', label: 'Model fotoğrafları görebiliyor', hint: 'Kapalıysa ilanlar yalnızca notlarınızdan yazılır.', showIf: isOpenAI },
   { key: 'claude_model', type: 'text', label: 'Model', list: CLAUDE_MODELS, placeholder: 'claude-opus-5-5', showIf: isClaude, models: true, mono: true },
@@ -141,7 +140,6 @@ const MARKET_FIELDS = [
 const decisionOn = (v) => v.engine !== 'kapali';
 // Hazır sağlayıcılar: dokununca motor, adres ve model birlikte dolar (anahtarı kullanıcı girer).
 const DECISION_PRESETS = [
-  { label: 'Varsayılan sunucu · Jev', values: { engine: 'jev', base_url: '', model: '' } },
   { label: 'OpenRouter · Jev', values: { engine: 'jev', base_url: 'https://openrouter.ai/api/v1', model: 'typesafe/jev-1.13' } },
   { label: 'TypeSafe · Jev', values: { engine: 'jev', base_url: 'https://api.typesafe.ai/v1', model: 'jev-latest' } },
   { label: 'Laya · bu bilgisayar', values: { engine: 'laya', base_url: 'http://127.0.0.1:8000', model: 'multilingual' } },
@@ -150,9 +148,9 @@ const DECISION_PRESETS = [
 const DECISION_FIELDS = [
   { key: 'engine', type: 'segmented', label: 'Motor', rerender: true, options: [['jev', 'Jev'], ['laya', 'Laya'], ['kapali', 'Kapalı']], hint: 'Fırsat adaylarını saniyeler içinde süzer: yalnızca aksesuar/parça mı, emsallerle aynı model mi, arızalı ya da kilitli mi, kapora veya kayıt dışı şüphesi var mı? Metin yazmaz, yalnızca karar verir.' },
   { key: '_presets', type: 'presets', label: 'Hazır sağlayıcılar', presets: DECISION_PRESETS, hint: 'Dokununca adres ve model dolar; anahtarınızı aşağıya girin. Kendi sunucunuzu (ör. başka bir Jev sağlayıcısı ya da uzak bir laya-serve) adres alanına elle de yazabilirsiniz.' },
-  { key: 'base_url', type: 'text', label: 'Sunucu adresi (base URL)', optional: true, mono: true, inputmode: 'url', placeholder: 'Boş: varsayılan', showIf: decisionOn, hint: 'Boşsa Jev için varsayılan sunucu (betaapiv2.llmapi.art), Laya için http://127.0.0.1:8000. /v1 ile bitebilir ya da tam /v1/systemone adresi olabilir.' },
-  { key: 'api_key', type: 'secret', label: 'API anahtarı', secret: 'decision.api_key', env: 'AUTOSELL_DECISION_API_KEY', optional: true, showIf: decisionOn, placeholder: 'Boş: varsayılan', hint: 'OpenRouter ya da TypeSafe kullanıyorsanız o sağlayıcının anahtarı. Boşsa varsayılan sunucuda Yapay Zekâ bölümündeki anahtar, Laya’da LAYA_API_KEY kullanılır (laya-serve anahtarsız da çalışır).' },
-  { key: 'model', type: 'text', label: 'Model', optional: true, mono: true, placeholder: 'Jev: jev · Laya: multilingual', showIf: decisionOn, hint: 'Sağlayıcıdaki model adı: varsayılan sunucu “jev”, OpenRouter “typesafe/jev-1.13”, TypeSafe “jev-latest”, Laya “multilingual” (Türkçe).' },
+  { key: 'base_url', type: 'text', label: 'Sunucu adresi (base URL)', optional: true, mono: true, inputmode: 'url', placeholder: 'Boş: varsayılan', showIf: decisionOn, hint: 'Kendi karar sunucunuzun adresi (zorunlu). /v1 ile bitebilir ya da tam /v1/systemone adresi olabilir.' },
+  { key: 'api_key', type: 'secret', label: 'API anahtarı', secret: 'decision.api_key', env: 'AUTOSELL_DECISION_API_KEY', optional: true, showIf: decisionOn, placeholder: 'Boş: varsayılan', hint: 'Karar sunucunuzun anahtarı. Boşsa, adres Yapay Zekâ bölümündeki sunucuyla aynıysa oradaki anahtar; Laya’da LAYA_API_KEY kullanılır (laya-serve anahtarsız da çalışır).' },
+  { key: 'model', type: 'text', label: 'Model', optional: true, mono: true, placeholder: 'Jev: jev · Laya: multilingual', showIf: decisionOn, hint: 'Sağlayıcıdaki model adı: OpenRouter “typesafe/jev-1.13”, TypeSafe “jev-latest”, Laya “multilingual” (Türkçe). Boşsa Jev’de “jev”, Laya’da “multilingual”.' },
   { advanced: [
     { row: [
       { key: 'max_checks', type: 'number', label: 'Tarama başına en fazla aday', min: 0, max: 100, int: true },
