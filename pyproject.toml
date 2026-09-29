@@ -1,0 +1,38 @@
+[build-system]
+requires = ["hatchling>=1.24"]
+build-backend = "hatchling.build"
+
+[project]
+name = "autosell"
+version = "0.1.0"
+description = "Sahibinden ve Letgo için yapay zekâ destekli otomatik ilan verme ve al-sat fırsat avcısı"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "Shiro" }]
+dependencies = [
+    "anthropic>=1.9",
+    "openai>=1.40",
+    "playwright>=1.45",
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.29",
+    "pydantic>=2.6",
+    "pillow>=10.0",
+    "python-multipart>=0.0.9",
+    "python-dotenv>=1.0",
+    "httpx>=0.27",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "httpx>=0.27"]
+
+[project.scripts]
+autosell = "autosell.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/autosell"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "browser: Playwright ile gerçek tarayıcı açan testler (sahte siteler üzerinde)",
+]

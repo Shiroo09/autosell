@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+build/
+dist/
+.pytest_cache/
+
+# AutoSell çalışma verisi (ayarlar, API anahtarları, tarayıcı oturumları, fotoğraflar)
+veri/
+.env
+
+# Editörler / işletim sistemi
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

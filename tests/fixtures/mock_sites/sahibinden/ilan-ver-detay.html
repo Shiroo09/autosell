@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>İlan Ver - İlan Detayları - sahibinden.com</title>
+<link rel="stylesheet" href="assets/app.css">
+</head>
+<body id="page-details">
+<header class="header-wrapper">
+  <div class="container header">
+    <a class="logo" href="index.html" title="sahibinden.com anasayfa"><svg viewBox="0 0 182 40" role="img" aria-label="sahibinden.com"><rect width="182" height="40" rx="3" fill="#ffe800"/><text x="10" y="27" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="bold" fill="#1c2e3f">sahibinden.com</text></svg></a>
+    <form class="search-form" action="arama.html" method="get" role="search">
+      <input type="text" name="query_text" id="searchText" placeholder="Kelime, ilan no veya mağaza adı ile ara" autocomplete="off">
+      <button type="submit">Ara</button>
+    </form>
+    <ul class="header-links">
+      <li class="guest-only"><a href="giris.html">Giriş Yap</a></li>
+      <li class="guest-only"><a href="giris.html#hesap-ac">Hesap Aç</a></li>
+      <li class="user-only" hidden><a href="index.html#bana-ozel">Bana Özel</a></li>
+      <li class="user-only" hidden><span class="user-name">Deniz Y.</span></li>
+      <li class="user-only" hidden><a href="index.html?cikis=1">Çıkış</a></li>
+      <li><a class="post-classified-button" href="ilan-ver.html">Ücretsiz* İlan Ver</a></li>
+    </ul>
+  </div>
+</header>
+<div class="container page-content">
+  <ol class="post-steps"><li class="done">1. Kategori Seçimi</li><li class="active">2. İlan Detayları</li><li class="">3. Önizleme</li><li class="">4. Doping</li><li class="">5. Onay</li></ol>
+  <h1 class="page-title">İlan Detayları</h1>
+  <p class="page-desc">İlanınızla ilgili bilgileri eksiksiz doldurun. <span class="req" style="color:#d0021b">*</span> ile işaretli alanların doldurulması zorunludur.</p>
+  <form id="classifiedPostForm" class="classified-post-form" novalidate>
+    <div class="form-alert" id="formAlert" role="alert" hidden>Lütfen zorunlu alanları doldurun.</div>
+    <div class="form-section">
+      <h2>Kategori</h2>
+      <div class="section-body selected-category"><span id="selectedCategoryPath"></span> <a href="ilan-ver.html" class="change-category">Kategoriyi Değiştir</a></div>
+    </div>
+    <div class="form-section" id="photoSection">
+      <h2>Fotoğraflar</h2>
+      <div class="section-body">
+        <p class="section-hint">İlanınıza en fazla 20 fotoğraf ekleyebilirsiniz. Fotoğraflı ilanlar 5 kat daha fazla ilgi görür.</p>
+        <div class="photo-toolbar">
+          <input type="file" id="photoUploadInput" name="photos" multiple accept="image/*" hidden>
+          <button type="button" class="btn btn-secondary" id="btnAddPhoto">Fotoğraf Ekle</button>
+          <span class="photo-status" id="photoStatus">Henüz fotoğraf eklenmedi.</span>
+        </div>
+        <div class="field-error" id="photoError" hidden></div>
+        <ul class="photo-list" id="photoList"></ul>
+      </div>
+    </div>
+    <div class="form-section">
+      <h2>İlan Bilgileri</h2>
+      <div class="section-body">
+        <div class="form-row" id="row-title">
+          <label class="form-label" for="addClassifiedTitle">İlan Başlığı <span class="req">*</span></label>
+          <div class="form-field">
+            <input type="text" id="addClassifiedTitle" name="title" maxlength="65" autocomplete="off">
+            <div class="field-hint"><span id="titleCharCount">0</span>/65 karakter</div>
+            <div class="field-error" hidden></div>
+          </div>
+        </div>
+        <div class="form-row" id="row-description">
+          <div class="form-label">Açıklama <span class="req">*</span></div>
+          <div class="form-field">
+            <div class="editor">
+              <div class="editor-toolbar">
+                <button type="button" data-cmd="bold" title="Kalın"><b>Kalın</b></button>
+                <button type="button" data-cmd="italic" title="İtalik"><i>İtalik</i></button>
+                <button type="button" data-cmd="insertUnorderedList" title="Liste">Liste</button>
+              </div>
+              <div class="editor-area" id="descriptionEditor" contenteditable="true" data-placeholder="Ürününüzün durumu, özellikleri ve satış koşulları hakkında bilgi verin..."></div>
+            </div>
+            <textarea name="description" id="descriptionInput" hidden></textarea>
+            <div class="field-hint">Açıklama en az 20 karakter olmalıdır.</div>
+            <div class="field-error" hidden></div>
+          </div>
+        </div>
+        <div class="form-row" id="row-price">
+          <label class="form-label" for="addClassifiedPrice">Fiyat <span class="req">*</span></label>
+          <div class="form-field">
+            <div class="inline-group">
+              <input type="text" id="addClassifiedPrice" name="price" class="price-input" inputmode="numeric" autocomplete="off">
+              <div class="sub-label">Para Birimi</div>
+              <select name="currency" id="currencySelect"><option value="TL" selected>TL</option><option value="USD">USD</option><option value="EUR">EUR</option><option value="GBP">GBP</option></select>
+            </div>
+            <div class="field-error" hidden></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="form-section">
+      <h2>Özellikler</h2>
+      <div class="section-body" id="attributeFields"></div>
+    </div>
+    <div class="form-section">
+      <h2>Adres Bilgileri</h2>
+      <div class="section-body">
+        <div class="form-row" id="row-city">
+          <label class="form-label" for="addressCity">İl <span class="req">*</span></label>
+          <div class="form-field"><select id="addressCity" name="city"><option value="">Seçiniz</option></select><div class="field-error" hidden></div></div>
+        </div>
+        <div class="form-row" id="row-town">
+          <div class="form-label">İlçe <span class="req">*</span></div>
+          <div class="form-field"><select id="addressTown" name="town" disabled><option value="">Önce il seçiniz</option></select><div class="field-error" hidden></div></div>
+        </div>
+        <div class="form-row" id="row-quarter">
+          <div class="form-label">Mahalle <span class="req">*</span></div>
+          <div class="form-field"><select id="addressQuarter" name="quarter" disabled><option value="">Önce ilçe seçiniz</option></select><div class="field-error" hidden></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="form-section">
+      <div class="section-body">
+        <div class="form-row" id="row-terms">
+          <div class="form-field">
+            <div class="terms-row"><input type="checkbox" id="rulesAccepted" name="rulesAccepted" value="1"><label for="rulesAccepted"><a href="yardim.html#ilan-verme-kurallari" target="_blank">İlan Verme Kuralları</a>'nı okudum ve kabul ediyorum.</label></div>
+            <div class="field-error" hidden></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary btn-large" id="btnDetailsContinue">Devam</button>
+    </div>
+  </form>
+</div>
+<div class="footer" style="padding:10px 0"><div class="container">© 2000-2026 sahibinden.com · Test amaçlı taklit sayfa</div></div>
+<script src="assets/common.js"></script>
+<script src="assets/categories.js"></script>
+<script src="assets/step-details.js"></script>
+
+</body>
+</html>

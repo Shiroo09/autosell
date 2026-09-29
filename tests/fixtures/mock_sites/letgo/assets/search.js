@@ -1,0 +1,32 @@
+/* letgo mock - search page: query echo + "Daha fazla yükle" (appends 10 cards after a delay) */
+(function (w, d) {
+  'use strict';
+  var LG = w.LG;
+  var q = new URLSearchParams(w.location.search).get('q') || '';
+  var input = d.querySelector('._1sQe8');
+  if (input && q) { input.value = q; }
+  var head = d.querySelector('._qTxt');
+  if (head) { head.textContent = q ? '"' + q + '"' : 'Tüm ilanlar'; }
+  var MORE = [
+"<li class=\"_1DNjI\"><a href=\"item/iphone-13-128-gb-beyaz-iid-1234512020\" class=\"_2cbZ2\"><figure class=\"_3k2Yf\"><img src=\"assets/img/phone-white.svg\" alt=\"iPhone 13 128 GB beyaz\" loading=\"lazy\"></figure><div class=\"_1zvfB\"><span class=\"_2Ks63\">₺29.000</span><span class=\"_2poNJ\">iPhone 13 128 GB beyaz</span><div class=\"_3rmDx\"><span class=\"_2VQu4\">Bahçelievler, İstanbul</span><span class=\"_2jcGx\">1 hafta önce</span></div></div></a><button type=\"button\" class=\"_5fAv1\" aria-label=\"Favorilere ekle\">♡</button></li>",
+"<li class=\"_1DNjI\"><a href=\"item/iphone-13-pro-max-256-gb-iid-1234512021\" class=\"_2cbZ2\"><figure class=\"_3k2Yf\"><img src=\"assets/img/phone-gold.svg\" alt=\"iPhone 13 Pro Max 256 GB\" loading=\"lazy\"></figure><div class=\"_1zvfB\"><span class=\"_2Ks63\">₺51.000</span><span class=\"_2poNJ\">iPhone 13 Pro Max 256 GB</span><div class=\"_3rmDx\"><span class=\"_2VQu4\">Çankaya, Ankara</span><span class=\"_2jcGx\">1 hafta önce</span></div></div></a><button type=\"button\" class=\"_5fAv1\" aria-label=\"Favorilere ekle\">♡</button></li>",
+"<li class=\"_1DNjI\"><a href=\"item/iphone-13-128-gb-takas-olur-iid-1234512022\" class=\"_2cbZ2\"><figure class=\"_3k2Yf\"><img src=\"assets/img/phone-black.svg\" alt=\"iPhone 13 128 GB takas olur\" loading=\"lazy\"></figure><div class=\"_1zvfB\"><span class=\"_2Ks63\">₺30.000</span><span class=\"_2poNJ\">iPhone 13 128 GB takas olur</span><div class=\"_3rmDx\"><span class=\"_2VQu4\">İzmit, Kocaeli</span><span class=\"_2jcGx\">1 hafta önce</span></div></div></a><button type=\"button\" class=\"_5fAv1\" aria-label=\"Favorilere ekle\">♡</button></li>",
+"<li class=\"_1DNjI\"><a href=\"item/iphone-13-kutusu-ve-sarj-kablosu-iid-1234512023\" class=\"_2cbZ2\"><figure class=\"_3k2Yf\"><img src=\"assets/img/accessory.svg\" alt=\"iPhone 13 kutusu ve şarj kablosu\" loading=\"lazy\"></figure><div class=\"_1zvfB\"><span class=\"_2Ks63\">₺300</span><span class=\"_2poNJ\">iPhone 13 kutusu ve şarj kablosu</span><div class=\"_3rmDx\"><span class=\"_2VQu4\">Kadıköy, İstanbul</span><span class=\"_2jcGx\">2 hafta önce</span></div></div></a><button type=\"button\" class=\"_5fAv1\" aria-label=\"Favorilere ekle\">♡</button></li>",
+"<li class=\"_1DNjI\"><a href=\"item/iphone-13-256-gb-mavi-faturali-iid-1234512024\" class=\"_2cbZ2\"><figure class=\"_3k2Yf\"><img src=\"assets/img/phone-blue.svg\" alt=\"iPhone 13 256 GB mavi faturalı\" loading=\"lazy\"></figure><div class=\"_1zvfB\"><span class=\"_2Ks63\">₺37.250</span><span class=\"_2poNJ\">iPhone 13 256 GB mavi faturalı</span><div class=\"_3rmDx\"><span class=\"_2VQu4\">Bornova, İzmir</span><span class=\"_2jcGx\">2 hafta önce</span></div></div></a><button type=\"button\" class=\"_5fAv1\" aria-label=\"Favorilere ekle\">♡</button></li>",
+"<li class=\"_1DNjI\"><a href=\"item/iphone-13-128-gb-kirmizi-iid-1234512025\" class=\"_2cbZ2\"><figure class=\"_3k2Yf\"><img src=\"assets/img/phone-red.svg\" alt=\"iPhone 13 128 GB kırmızı\" loading=\"lazy\"></figure><div class=\"_1zvfB\"><span class=\"_2Ks63\">₺28.750</span><span class=\"_2poNJ\">iPhone 13 128 GB kırmızı</span><div class=\"_3rmDx\"><span class=\"_2VQu4\">Osmangazi, Bursa</span><span class=\"_2jcGx\">2 hafta önce</span></div></div></a><button type=\"button\" class=\"_5fAv1\" aria-label=\"Favorilere ekle\">♡</button></li>",
+"<li class=\"_1DNjI\"><a href=\"item/iphone-11-64-gb-iid-1234512026\" class=\"_2cbZ2\"><figure class=\"_3k2Yf\"><img src=\"assets/img/phone-white.svg\" alt=\"iPhone 11 64 GB\" loading=\"lazy\"></figure><div class=\"_1zvfB\"><span class=\"_2Ks63\">₺14.500</span><span class=\"_2poNJ\">iPhone 11 64 GB</span><div class=\"_3rmDx\"><span class=\"_2VQu4\">Yenimahalle, Ankara</span><span class=\"_2jcGx\">2 hafta önce</span></div></div></a><button type=\"button\" class=\"_5fAv1\" aria-label=\"Favorilere ekle\">♡</button></li>",
+"<li class=\"_1DNjI\"><a href=\"item/iphone-13-128-gb-yenilenmis-garantili-iid-1234512027\" class=\"_2cbZ2\"><figure class=\"_3k2Yf\"><img src=\"assets/img/phone-graphite.svg\" alt=\"iPhone 13 128 GB yenilenmiş garantili\" loading=\"lazy\"></figure><div class=\"_1zvfB\"><span class=\"_2Ks63\">₺33.000</span><span class=\"_2poNJ\">iPhone 13 128 GB yenilenmiş garantili</span><div class=\"_3rmDx\"><span class=\"_2VQu4\">Beylikdüzü, İstanbul</span><span class=\"_2jcGx\">3 hafta önce</span></div></div></a><button type=\"button\" class=\"_5fAv1\" aria-label=\"Favorilere ekle\">♡</button></li>",
+"<li class=\"_1DNjI\"><a href=\"item/iphone-13-pro-128-gb-altin-iid-1234512028\" class=\"_2cbZ2\"><figure class=\"_3k2Yf\"><img src=\"assets/img/phone-gold.svg\" alt=\"iPhone 13 Pro 128 GB altın\" loading=\"lazy\"></figure><div class=\"_1zvfB\"><span class=\"_2Ks63\">₺43.500</span><span class=\"_2poNJ\">iPhone 13 Pro 128 GB altın</span><div class=\"_3rmDx\"><span class=\"_2VQu4\">Selçuklu, Konya</span><span class=\"_2jcGx\">3 hafta önce</span></div></div></a><button type=\"button\" class=\"_5fAv1\" aria-label=\"Favorilere ekle\">♡</button></li>",
+"<li class=\"_1DNjI\"><a href=\"item/iphone-13-128-gb-orijinal-kutulu-iid-1234512029\" class=\"_2cbZ2\"><figure class=\"_3k2Yf\"><img src=\"assets/img/phone-pink.svg\" alt=\"iPhone 13 128 GB orijinal kutulu\" loading=\"lazy\"></figure><div class=\"_1zvfB\"><span class=\"_2Ks63\">₺35.500</span><span class=\"_2poNJ\">iPhone 13 128 GB orijinal kutulu</span><div class=\"_3rmDx\"><span class=\"_2VQu4\">Yenişehir, Mersin</span><span class=\"_2jcGx\">3 hafta önce</span></div></div></a><button type=\"button\" class=\"_5fAv1\" aria-label=\"Favorilere ekle\">♡</button></li>"
+];
+  var btn = d.querySelector('._7LmQ0');
+  var grid = d.querySelector('._6hJk1');
+  btn.addEventListener('click', function () {
+    btn.disabled = true;
+    btn.innerHTML = LG.spinner + 'Yükleniyor...';
+    w.setTimeout(function () {
+      MORE.forEach(function (h) { grid.appendChild(LG.h(h)); });
+      btn.replaceWith(LG.h('<p class="_2rTq8">Tüm ilanları gördün</p>'));
+    }, 400);
+  });
+})(window, document);
