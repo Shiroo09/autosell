@@ -11,7 +11,7 @@ Fotoğraflarını yükle ve birkaç satır not yaz; gerisini AutoSell hazırlar:
 - **Fırsat avcısı:** Takip listelerindeki yeni ilanları tarar ve emsal ilanlarla fiyat araştırması yapar. Tahmini kâr, marj ve risk puanıyla al-sat fırsatlarını bulur, istersen Telegram'dan bildirir. Tarama hızlıdır: derin taramalar arasında yalnızca en yeni ilanlar okunur, tarama tarayıcısı resim indirmez ve fırsat bulunur bulunmaz bildirim gider.
 - **Hızlı karar motoru (Jev / Laya):** Her fırsat adayını saniyeler içinde süzer. Yalnızca kutu, kılıf ya da parça satan ilanları, emsallerden farklı modelleri (13 ↔ 13 mini, PS5 Disk ↔ Dijital), arızalı ya da kilitli cihazları ve kapora isteyen ilanları eler.
 - **Web paneli:** Mobil ve masaüstü uyumludur, telefonun ana ekranına eklenebilir (PWA) ve karanlık modu destekler.
-- **Yapay zekâ sağlayıcısı:** OpenAI uyumlu her API desteklenir. Varsayılan olarak `betaapiv2.llmapi.art` üzerindeki **muse-spark-1.3** modeli kullanılır; OpenAI, OpenRouter, Groq, DeepSeek, yerel Ollama ve LM Studio da seçilebilir. İstenirse Claude (Anthropic) kullanılabilir.
+- **Yapay zekâ sağlayıcısı:** OpenAI uyumlu her API desteklenir. Hazır bir sağlayıcı gelmez: kendi sağlayıcının adresini, anahtarını ve modelini girersin (OpenAI, OpenRouter, Groq, DeepSeek, yerel Ollama, LM Studio ya da kendi sunucun). İstenirse Claude (Anthropic) kullanılabilir.
 
 > ⚠️ **Önemli:** Sahibinden ve Letgo'nun kullanım koşulları otomasyon araçlarını kısıtlayabilir. Araç yalnızca **kendi hesabınla, kendi ilanların için** tasarlandı ve sorumluluk kullanıcıya aittir.
 >
@@ -61,7 +61,7 @@ autosell panel            # http://127.0.0.1:8000 adresinde paneli açar (--ac: 
 
 > `'autosell' is not recognized` / `komut bulunamadı` hatası: sanal ortam etkin değil. Yeni her komut penceresinde önce `.venv\Scripts\activate` (macOS/Linux: `source .venv/bin/activate`) çalıştır ya da doğrudan `baslat.bat`'ı kullan. Bu bir Python projesidir; `npm start` çalışmaz.
 
-1. **Ayarlar → Yapay Zekâ:** OpenAI uyumlu sağlayıcı hazır gelir (`https://betaapiv2.llmapi.art/v1`, model `muse-spark-1.3`). API anahtarını gir ve "Bağlantıyı test et" ile dene. İstersen modeli listeden değiştir ya da Claude'a geç.
+1. **Ayarlar → Yapay Zekâ:** Kendi sağlayıcının **sunucu adresini (base URL)**, **API anahtarını** ve **modelini** gir (model adını bilmiyorsan "Modelleri listele"). Sonra "Bağlantıyı test et" ile dene. İstersen Claude'a geç.
 2. **Ayarlar → Satıcı Profili:** il, ilçe ve mahalleyi gir; ilan formundaki adres alanları buradan doldurulur. Takas, pazarlık ve teslimat tercihlerini de burada seç.
 3. **Ayarlar → Platformlar → Giriş yap:** Açılan tarayıcı penceresinde Sahibinden ve Letgo hesaplarına bir kez giriş yap. Oturum `veri/tarayici/` altında saklanır.
 4. **Yeni İlan:** Fotoğrafları yükle, kısa notunu ve fiyatı yaz, sonra **"✨ Yapay zekâ ile ilan oluştur"** düğmesine bas.
@@ -157,14 +157,14 @@ Sitelerin HTML yapısı sık değiştiği için AutoSell sabit CSS seçicilerine
 
 | Sağlayıcı | Ayar | Not |
 |---|---|---|
-| **OpenAI uyumlu** (varsayılan) | Base URL `https://betaapiv2.llmapi.art/v1`, model `muse-spark-1.3` | Resmi `openai` SDK'sı. OpenAI, OpenRouter (`https://openrouter.ai/api/v1`), Groq, DeepSeek, Ollama (`http://localhost:11434/v1`), LM Studio (`http://localhost:1234/v1`) de kullanılabilir. Sunucu `json_schema`'yı desteklemiyorsa `json_object`'e, o da yoksa serbest metinden JSON ayıklamaya düşer. Görsel desteklemeyen modellerde fotoğraflar otomatik çıkarılır. Model adı sunucudaki kimlikle birebir değilse ("muse spark 1.3" gibi) sunucunun model listesinden en yakın olan seçilir. Adres `/v1` ile bitmiyorsa bir kez `/v1` eklenerek denenir. Anahtar: panel ya da `OPENAI_API_KEY`. |
+| **OpenAI uyumlu** | Sunucu adresi, anahtar ve model senin | Resmi `openai` SDK'sı. OpenAI (`https://api.openai.com/v1`), OpenRouter (`https://openrouter.ai/api/v1`), Groq, DeepSeek, Ollama (`http://localhost:11434/v1`), LM Studio (`http://localhost:1234/v1`) ya da kendi sunucun kullanılabilir. Adres girilmedikçe hiçbir yere istek gönderilmez. Sunucu `json_schema`'yı desteklemiyorsa `json_object`'e, o da yoksa serbest metinden JSON ayıklamaya düşer. Görsel desteklemeyen modellerde fotoğraflar otomatik çıkarılır. Model adı sunucudaki kimlikle birebir değilse ("llama 3.1 8b" gibi) sunucunun model listesinden en yakın olan seçilir. Adres `/v1` ile bitmiyorsa bir kez `/v1` eklenerek denenir. Anahtar: panel ya da `OPENAI_API_KEY`. |
 | **Claude** | Model `claude-opus-5-5`, efor `high` | Resmi `anthropic` SDK'sı; yapılandırılmış çıktı, görsel analiz, web araştırması. Güvenlik sınıflandırıcısı reddederse Anthropic'in önerdiği modelle sunucu tarafında yeniden dener (`fallbacks: "default"`; Ayarlar'dan kapatılabilir). Anahtar: panel ya da `ANTHROPIC_API_KEY`. |
 
 Yerel ve küçük modellerde başlık/açıklama kalitesi düşebilir. Görsel analiz için görsel destekli bir model (ör. `llama3.2-vision`, `qwen2.5-vl`) seç.
 
 ## Hızlı karar motoru (Jev / Laya)
 
-Büyük dil modelleri (muse-spark, Claude) ilan yazmakta iyidir ama bir ilanı incelemeleri 10–60 saniye sürer. Karar modelleri ise metin yazmaz: bir duruma (ilana) sorulan yazılı sorulara tek adımda **olasılıklı** cevap verir. AutoSell her fırsat adayına dört soruyu tek istekte sorar:
+Büyük dil modelleri (GPT, Claude vb.) ilan yazmakta iyidir ama bir ilanı incelemeleri 10–60 saniye sürer. Karar modelleri ise metin yazmaz: bir duruma (ilana) sorulan yazılı sorulara tek adımda **olasılıklı** cevap verir. AutoSell her fırsat adayına dört soruyu tek istekte sorar:
 
 | Soru | Tür | Eleme |
 |---|---|---|
@@ -175,19 +175,18 @@ Büyük dil modelleri (muse-spark, Claude) ilan yazmakta iyidir ama bir ilanı i
 
 Motor yoksa ya da cevap vermezse tarama, kural tabanlı puanlamayla kesintisiz devam eder. Aynı ilan için karar tekrar sorulmaz (önbellek).
 
-**Kendi sağlayıcını ekle:** Ayarlar → Hızlı Karar Motoru bölümünde motoru (Jev / Laya), **sunucu adresini (base URL)**, **API anahtarını** ve **modeli** kendin girebilirsin. Hazır sağlayıcı düğmeleri adres ve modeli tek dokunuşla doldurur, anahtarı sen girersin:
+**Kendi sağlayıcını ekle:** Motor varsayılan olarak kapalıdır. Ayarlar → Hızlı Karar Motoru bölümünde motoru (Jev / Laya), **sunucu adresini (base URL)**, **API anahtarını** ve **modeli** kendin girersin. Hazır sağlayıcı düğmeleri adres ve modeli tek dokunuşla doldurur, anahtarı sen girersin:
 
 | Sağlayıcı | Sunucu adresi | Model | Anahtar |
 |---|---|---|---|
-| Varsayılan sunucu (Jev) | `https://betaapiv2.llmapi.art/v1` (boş bırakılabilir) | `jev` | Yapay Zekâ bölümündeki anahtar kullanılır |
 | OpenRouter (Jev) | `https://openrouter.ai/api/v1` | `typesafe/jev-1.13` | OpenRouter anahtarın |
 | TypeSafe'in kendi API'si (Jev) | `https://api.typesafe.ai/v1` | `jev-latest` | TypeSafe anahtarın |
-| Laya, bu bilgisayar | `http://127.0.0.1:8000` (boş bırakılabilir) | `multilingual` | gerekmez (`LAYA_API_KEY` ile başlattıysan onu gir) |
+| Laya, bu bilgisayar | `http://127.0.0.1:8000` | `multilingual` | gerekmez (`LAYA_API_KEY` ile başlattıysan onu gir) |
 | Laya, kendi sunucun | `https://laya.alan-adin.com` | `multilingual` | sunucunun `LAYA_API_KEY` değeri |
 
-Adres `/v1` ile bitebilir ya da doğrudan tam `/v1/systemone` adresi olabilir. `POST /v1/systemone` protokolünü konuşan her sunucu çalışır. Aynı ayarlar `.env` ile de verilebilir: `AUTOSELL_DECISION_ENGINE`, `AUTOSELL_DECISION_URL`, `AUTOSELL_DECISION_MODEL`, `AUTOSELL_DECISION_API_KEY` (bkz. `.env.example`). Güvenlik için Yapay Zekâ bölümündeki anahtar yalnızca aynı sunucuya gönderilir; başka bir sağlayıcı için anahtarı ayrıca girmen gerekir. Ayarları kaydettikten sonra **Motoru test et** 4 örnek ilanla bağlantıyı ve güvenilirliği ölçer.
+Adres `/v1` ile bitebilir ya da doğrudan tam `/v1/systemone` adresi olabilir. `POST /v1/systemone` protokolünü konuşan her sunucu çalışır. Aynı ayarlar `.env` ile de verilebilir: `AUTOSELL_DECISION_ENGINE`, `AUTOSELL_DECISION_URL`, `AUTOSELL_DECISION_MODEL`, `AUTOSELL_DECISION_API_KEY` (bkz. `.env.example`). Adres girilmedikçe motor kullanılmaz. Güvenlik için Yapay Zekâ bölümündeki anahtar yalnızca aynı sunucuya gönderilir; başka bir sağlayıcı için anahtarı ayrıca girmen gerekir. Ayarları kaydettikten sonra **Motoru test et** 4 örnek ilanla bağlantıyı ve güvenilirliği ölçer.
 
-**Jev (varsayılan, kurulum gerektirmez):** TypeSafe'in karar modeli. Varsayılan sunucu (`betaapiv2.llmapi.art`) Jev'i `POST /v1/systemone` üzerinden sunar ve Yapay Zekâ bölümündeki anahtarla çalışır. Ağ gecikmesi dahil ilan başına ~0,6–1 sn sürer, adaylar 4'er paralel sorulur. Sağlayıcı geçici olarak hata verirse tarama durmaz, kural tabanlı puanlamayla sürer.
+**Jev (kurulum gerektirmez):** TypeSafe'in karar modeli; OpenRouter, TypeSafe ya da `POST /v1/systemone` sunan başka bir sağlayıcı üzerinden kullanılır. Ağ gecikmesi dahil ilan başına ~0,6–1 sn sürer, adaylar 4'er paralel sorulur. Sağlayıcı geçici olarak hata verirse tarama durmaz, kural tabanlı puanlamayla sürer.
 
 **Laya (bilgisayarında ya da kendi sunucunda, ücretsiz, açık kaynak):** Jev'in açık kaynak karşılığıdır ([NandhaKishorM/laya](https://github.com/NandhaKishorM/laya), Apache-2.0). `laya-serve` aynı `/v1/systemone` protokolünü konuştuğu için motoru "Laya" yapıp adresini girmen yeterli.
 

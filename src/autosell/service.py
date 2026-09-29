@@ -399,10 +399,14 @@ class AutoSell:
 
         engine = self.decision_engine()
         if engine is None:
-            if self.settings.decision.engine == "kapali":
-                raise DecisionError("Hızlı karar motoru kapalı.")
+            d = self.settings.decision
+            if d.engine == "kapali":
+                raise DecisionError("Hızlı karar motoru kapalı. Bir sağlayıcı seçip adresini girin.")
+            if not d.base_url.strip():
+                raise DecisionError("Karar motoru için sunucu adresi girilmedi (ör. https://openrouter.ai/api/v1 "
+                                    "ya da kendi Laya sunucunuz).")
             raise DecisionError("Jev için API anahtarı yok. Bu bölüme sağlayıcınızın (ör. OpenRouter, TypeSafe) "
-                                "anahtarını girin; varsayılan sunucuda Yapay Zekâ bölümündeki anahtar kullanılır.")
+                                "anahtarını girin.")
         comps = ["Apple iPhone 13 128 GB Mavi", "iPhone 13 128GB Gece Yarısı Kutulu", "iPhone 13 128 GB Yıldız Işığı"]
         cases = [  # (başlık, fiyat, açıklama, beklenen: tür, aynı ürün, kusurlu, şüpheli)
             ("iPhone 13 128 GB Mavi Temiz", "27.500 TL", "Tek elden, sorunsuz, kutulu faturalı.", ("urun", True, False, False)),

@@ -62,7 +62,7 @@ class OpenAICompatProvider(LLMProvider):
             raise AIError(f"Model listesi alınamadı ({exc.status_code}).") from exc
 
     def _try_resolve_model(self) -> bool:
-        """Model adı sunucudaki kimlikle birebir değilse ("muse spark 1.3" → "muse-spark-1.3")
+        """Model adı sunucudaki kimlikle birebir değilse ("llama 3.1 8b" → "llama-3.1-8b")
         sunucunun model listesinden en yakın olanı seçer."""
         if self._model_resolved:
             return False

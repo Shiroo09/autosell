@@ -34,10 +34,6 @@ SECRET_FIELDS: tuple[tuple[str, str], ...] = (
 MASK_PREFIX = "••••"
 
 
-DEFAULT_OPENAI_BASE_URL = "https://betaapiv2.llmapi.art/v1"
-DEFAULT_OPENAI_MODEL = "muse-spark-1.3"
-
-
 class AISettings(BaseModel):
     provider: Literal["claude", "openai"] = "openai"
     claude_model: str = DEFAULT_CLAUDE_MODEL
@@ -46,8 +42,9 @@ class AISettings(BaseModel):
     # Güvenlik sınıflandırıcısı isteği reddederse Anthropic'in önerdiği modelle
     # sunucu tarafında yeniden dene (server-side fallback).
     claude_fallback: bool = True
-    openai_base_url: str = DEFAULT_OPENAI_BASE_URL
-    openai_model: str = DEFAULT_OPENAI_MODEL
+    # Hazır sağlayıcı yok: kullanıcı kendi OpenAI uyumlu sunucusunun adresini, anahtarını ve modelini girer.
+    openai_base_url: str = ""
+    openai_model: str = ""
     openai_api_key: str = ""
     openai_vision: bool = True
     max_photos: int = 6
@@ -58,14 +55,14 @@ class AISettings(BaseModel):
 class DecisionSettings(BaseModel):
     """Hızlı karar motoru (Jev / Laya): fırsat adaylarını saniyeler içinde süzer.
 
-    İkisi de ``POST /v1/systemone`` protokolünü konuşur; kullanıcı kendi sunucusunu (adres,
-    anahtar, model) girebilir: varsayılan sunucu, OpenRouter, TypeSafe'in kendi API'si,
-    bilgisayarındaki ya da kendi sunucusundaki Laya.
+    İkisi de ``POST /v1/systemone`` protokolünü konuşur. Hazır sağlayıcı yoktur; kullanıcı kendi
+    sunucusunu (adres, anahtar, model) girer: ör. OpenRouter, TypeSafe'in kendi API'si,
+    bilgisayarındaki ya da kendi sunucusundaki Laya. Adres girilmedikçe motor kullanılmaz.
     """
 
     # "jev": TypeSafe Jev (bir API sağlayıcısı üzerinden), "laya": laya-serve, "kapali": kullanma
-    engine: Literal["jev", "laya", "kapali"] = "jev"
-    # Boşsa jev için varsayılan sunucu (DEFAULT_OPENAI_BASE_URL), laya için http://127.0.0.1:8000
+    engine: Literal["jev", "laya", "kapali"] = "kapali"
+    # Karar sunucusunun adresi (zorunlu), ör. https://openrouter.ai/api/v1 ya da http://127.0.0.1:8000
     base_url: str = ""
     # Boşsa AUTOSELL_DECISION_API_KEY; o da yoksa jev için (aynı sunucudaysa) yapay zekâ anahtarı,
     # laya için LAYA_API_KEY kullanılır
@@ -259,20 +256,17 @@ class Settings(BaseModel):
         return self.web.password or os.environ.get("AUTOSELL_PANEL_PASSWORD", "")
 
     def decision_endpoint(self) -> tuple[str, str, str] | None:
-        """Karar motorunun (adres, anahtar, model) üçlüsü; kapalıysa None."""
+        """Karar motorunun (adres, anahtar, model) üçlüsü; kapalıysa ya da adres girilmemişse None."""
         d = self.decision
-        if d.engine == "kapali":
+        base = d.base_url.strip()
+        if d.engine == "kapali" or not base:
             return None
         key = d.api_key.strip() or os.environ.get("AUTOSELL_DECISION_API_KEY", "").strip()
         if d.engine == "jev":
-            base = d.base_url.strip() or DEFAULT_OPENAI_BASE_URL
             # Yapay zekâ anahtarı yalnızca aynı sunucuya gönderilir (başka firmanın anahtarı sızmasın)
             if not key and _same_host(base, self.ai.openai_base_url):
                 key = self.ai.openai_api_key.strip() or os.environ.get("OPENAI_API_KEY", "").strip()
             return base, key, d.model.strip() or "jev"
-        from .ai.decision import DEFAULT_LAYA_URL
-
-        base = d.base_url.strip() or DEFAULT_LAYA_URL
         return base, key or os.environ.get("LAYA_API_KEY", "").strip(), d.model.strip() or "multilingual"
 
 

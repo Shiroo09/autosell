@@ -65,7 +65,7 @@ def fake_jev(calls: list | None = None, fail_status: int | None = None) -> httpx
 
 
 def test_systemone_url_variants():
-    assert systemone_url("https://betaapiv2.llmapi.art/v1") == "https://betaapiv2.llmapi.art/v1/systemone"
+    assert systemone_url("https://gw.ornek.com/v1") == "https://gw.ornek.com/v1/systemone"
     assert systemone_url("http://127.0.0.1:8000/") == "http://127.0.0.1:8000/v1/systemone"
     assert systemone_url("http://x/v1/systemone") == "http://x/v1/systemone"
     with pytest.raises(DecisionError):
@@ -323,10 +323,17 @@ def test_scheduler_jitter_and_decision_status(tmp_path):
         assert watch.id not in app.scheduler.due_watches(now)  # 10 dk ±%20 dolmadı
         assert watch.id in app.scheduler.due_watches(now + timedelta(minutes=5))  # 12 dk geçti
 
-        # Jev: anahtar yoksa hazır değil; anahtar olunca hazır. Laya: anahtarsız hazır.
-        app.settings_store.update({"ai": {"openai_api_key": ""}, "decision": {"engine": "jev"}})
-        assert app.decision_ready() is bool(__import__("os").environ.get("OPENAI_API_KEY"))
+        # Varsayılan: kapalı. Adres girilmedikçe hiçbir motor hazır değil.
+        assert not app.decision_ready()
         app.settings_store.update({"decision": {"engine": "laya"}})
+        assert not app.decision_ready()
+        # Jev: adres ve anahtar gerekir. Laya: adres yeter (anahtarsız çalışabilir).
+        app.settings_store.update({"decision": {"engine": "jev", "base_url": "https://openrouter.ai/api/v1"}})
+        assert not app.decision_ready()
+        app.settings_store.update({"decision": {"api_key": "sk-or-deneme"}})
+        assert app.decision_ready()
+        app.settings_store.update({"decision": {"engine": "laya", "base_url": "http://127.0.0.1:8000",
+                                                "api_key": ""}})
         assert app.decision_ready()
         assert app.settings.decision_endpoint() == ("http://127.0.0.1:8000", "", "multilingual")
         app.settings_store.update({"decision": {"engine": "kapali"}})
@@ -364,8 +371,12 @@ def test_users_can_bring_their_own_decision_endpoint(tmp_path, monkeypatch):
     for env in ("OPENAI_API_KEY", "AUTOSELL_DECISION_API_KEY", "LAYA_API_KEY"):
         monkeypatch.delenv(env, raising=False)
     s = Settings()
-    s.ai.openai_api_key = "sk-yapay-zeka"
-    assert s.decision_endpoint() == ("https://betaapiv2.llmapi.art/v1", "sk-yapay-zeka", "jev")  # varsayılan
+    assert s.decision.engine == "kapali" and s.decision_endpoint() is None  # hazır sağlayıcı yok
+    s.decision.engine = "jev"
+    assert s.decision_endpoint() is None  # adres girilmedikçe motor kullanılmaz
+    s.ai.openai_base_url, s.ai.openai_api_key = "https://gw.ornek.com/v1", "sk-yapay-zeka"
+    s.decision.base_url = "https://gw.ornek.com/v1"  # yapay zekâyla aynı sunucu: aynı anahtar
+    assert s.decision_endpoint() == ("https://gw.ornek.com/v1", "sk-yapay-zeka", "jev")
 
     s.decision.base_url, s.decision.model = "https://openrouter.ai/api/v1", "typesafe/jev-1.13"
     assert s.decision_endpoint()[1] == ""  # yapay zekâ anahtarı OpenRouter'a gönderilmez
