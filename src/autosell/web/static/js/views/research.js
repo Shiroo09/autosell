@@ -44,7 +44,7 @@ export async function mount(root, ctx) {
           <div class="input-row">
             <div class="input-wrap has-prefix grow">
               <span class="input-prefix">${icon('search', { size: 18 })}</span>
-              <input id="rs-q" class="input" name="query" type="search" placeholder="ör. iPhone 13 128 GB" autocomplete="off" enterkeyhint="search" />
+              <input id="rs-q" class="input" name="query" type="text" placeholder="ör. iPhone 13 128 GB" autocomplete="off" enterkeyhint="search" />
             </div>
           </div>
           <p class="hint">Marka ve model yeterli; renk gibi fiyatı az etkileyen ayrıntıları eklemeyin.</p>

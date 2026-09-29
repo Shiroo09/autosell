@@ -133,10 +133,19 @@ class MarketScanner:
 
     def _guard(self, driver: PageDriver, status: int | None = None) -> None:
         """Site erişimi engellediyse (403/429, "erişim engellendi") ya da CAPTCHA çözülmezse
-        ScanBlocked fırlatır; böylece o platformun taraması bir süre duraklatılır."""
+        ScanBlocked fırlatır; böylece o platformun taraması bir süre duraklatılır.
+
+        Tek bir 403 yetmez: sayfa bir kez daha açılır, o da engellenirse duraklatılır.
+        """
         snap = driver.snapshot()
         text = snap.norm_text
-        if status in (403, 429) or any(w in text for w in BLOCK_TEXTS):
+        blocked = status in (403, 429) or any(w in text for w in BLOCK_TEXTS)
+        if blocked and status in (403, 429):
+            driver.page.wait_for_timeout(4000)
+            again = driver.page.goto(driver.page.url, wait_until="domcontentloaded", timeout=30000)
+            if again is None or again.status not in (403, 429):
+                return
+        if blocked:
             raise ScanBlocked(f"Site erişimi kısıtladı (HTTP {status or '-'}).")
         if is_captcha(snap):
             try:

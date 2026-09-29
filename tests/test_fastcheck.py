@@ -29,12 +29,17 @@ from .test_flow import ScriptedInteraction
 from .test_scan import _search_html
 
 
+def _cevap(olumlu: str, diger: str, olasilik: float) -> dict:
+    return {"type": "choice", "choice": olumlu if olasilik >= 0.5 else diger,
+            "probabilities": {olumlu: olasilik, diger: round(1 - olasilik, 4)}}
+
+
 def _answers(kind="urun", same=0.95, faulty=0.03, shady=0.05):
     return {
         "ilan_turu": {"type": "choice", "choice": kind, "confidence": 1, "probabilities": {kind: 0.97}},
-        "ayni_urun": {"type": "noul", "noul": same},
-        "kusurlu": {"type": "noul", "noul": faulty},
-        "supheli": {"type": "noul", "noul": shady},
+        "ayni_urun": _cevap("ayni", "farkli", same),
+        "kusurlu": _cevap("kusurlu", "saglam", faulty),
+        "supheli": _cevap("supheli", "normal", shady),
     }
 
 
@@ -47,8 +52,9 @@ def fake_jev(calls: list | None = None, fail_status: int | None = None) -> httpx
             calls.append({"url": str(request.url), "auth": request.headers.get("authorization"), "body": body})
         if fail_status:
             return httpx.Response(fail_status, json={"error": {"message": "olmadı"}})
-        title = body["state"]["ilan"]["baslik"].lower()
-        desc = str(body["state"]["ilan"].get("aciklama", "")).lower()
+        state = body["state"]
+        text = state.lower() if isinstance(state, str) else (state["ilan"]["baslik"] + " " + str(state["ilan"].get("aciklama", ""))).lower()
+        title, desc = text, text
         if "kutusu" in title:
             answers = _answers("aksesuar_parca", same=0.3)
         elif "mor renk" in title or "mini" in title:  # kuralların göremediği model farkını taklit eder

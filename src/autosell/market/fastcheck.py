@@ -22,30 +22,54 @@ from ..ai.decision import DecisionEngine, DecisionError, choice, noul
 from ..models import Deal, MarketEstimate, MarketListing, RiskFlag
 from ..textutil import format_price
 
+def questions_for(state: str) -> dict[str, Any]:
+    # "Aynı mı?" diye sormak Laya'da kaybediyor; aranan model açıkça yazılınca doğru ayırıyor.
+    import copy
+    import re
+    questions = copy.deepcopy(LISTING_QUESTIONS)
+    match = re.search(r"Aranan ürün: ([^.]+)\.", state)
+    if match:
+        urun = match.group(1).strip()
+        questions["ayni_urun"]["instructions"] = "İlandaki ürün hangisi?"
+        questions["ayni_urun"]["criteria"]["ayni"] = urun
+        questions["ayni_urun"]["criteria"]["farkli"] = "başka model, başka kapasite ya da başka sürüm"
+    return questions
+
+
 LISTING_QUESTIONS: dict[str, Any] = {
     "ilan_turu": {
         "type": "choice",
-        "instructions": "Bu ilanda satılan şey nedir?",
+        "instructions": "Bu ilan ne tür bir ilan?",
         "criteria": {
-            "urun": "ürünün kendisi satılıyor (yanında hediye aksesuar olabilir)",
-            "aksesuar_parca": "yalnızca kutu, kılıf, şarj aleti, kablo, jant, ekran ya da yedek parça",
-            "alim_takas": "satış değil: alım ilanı (alınır, aranıyor) ya da yalnızca takas",
-            "diger": "başka bir şey",
+            "urun": "satılık ilan ve satılan şey ürünün kendisi (telefon, konsol, araç, eşya)",
+            "aksesuar_parca": "satılan şey yalnızca kutu, kılıf, şarj aleti, kablo ya da yedek parça",
+            "alim_takas": "satış değil: birisi ürün arıyor (alınır, aranıyor) ya da yalnızca takas ediyor",
+            "diger": "bunların hiçbiri",
         },
     },
     "ayni_urun": {
-        "type": "noul",
+        "type": "choice",
         "instructions": "İlandaki ürün, emsal ilanlardaki ürünle aynı model ve aynı kapasitede/sürümde mi?",
+        "criteria": {
+            "ayni": "aynı model ve aynı kapasite/sürüm",
+            "farkli": "farklı model, farklı kapasite ya da farklı sürüm",
+        },
     },
     "kusurlu": {
-        "type": "noul",
-        "instructions": "İlana göre ürün arızalı, hasarlı, kırık, kilitli (iCloud/hesap kilidi), ağır hasar "
-                        "kayıtlı ya da parça olarak mı satılıyor?",
+        "type": "choice",
+        "instructions": "İlandaki ürünün durumu nedir?",
+        "criteria": {
+            "kusurlu": "ekranı kırık, açılmıyor, arızalı, anakartı yanmış, iCloud ya da hesap kilidi var",
+            "saglam": "sorunsuz, çalışıyor, hatasız; pil yüzdesi, çizik ya da kutu/kablo verilmesi kusur değildir",
+        },
     },
     "supheli": {
-        "type": "noul",
-        "instructions": "İlan kapora veya ön ödeme istiyor mu, ya da ürün kayıt dışı (yurt dışı, IMEI kaydı yok) "
-                        "veya replika mı?",
+        "type": "choice",
+        "instructions": "İlanın satış şekli nedir?",
+        "criteria": {
+            "supheli": "kapora ya da ön ödeme istiyor, kayıt dışı (IMEI yok, yurt dışı) ya da replika",
+            "normal": "normal satış; kapora, kayıt dışı ya da replika işareti yok",
+        },
     },
 }
 
@@ -58,20 +82,30 @@ _TYPE_REJECT = {
 Entry = tuple[MarketListing, MarketEstimate, Deal]
 
 
-def listing_state(listing: MarketListing, estimate: MarketEstimate, query: str = "") -> dict[str, Any]:
-    details = listing.details or {}
-    ilan: dict[str, Any] = {"baslik": listing.title, "fiyat": format_price(listing.price, listing.currency)}
-    if details.get("description"):
-        ilan["aciklama"] = str(details["description"])[:1500]
-    if details.get("attributes"):
-        ilan["ozellikler"] = dict(list(details["attributes"].items())[:20])
-    state: dict[str, Any] = {"ilan": ilan, "emsal_ilanlar": [c.title for c in estimate.comps[:3]]}
+def listing_text(title: str, price: str, description: str = "", query: str = "",
+                  attributes: dict[str, Any] | None = None, comps: list[str] | None = None) -> str:
+    # Laya iç içe JSON'u Türkçe ilanda yanlış okuyor; aynı bilgi düz cümlede doğru ayrılıyor.
+    parts = [f"İlan: {title}, {price}."]
+    if description:
+        parts.append(description[:1500])
+    if attributes:
+        attrs = ", ".join(f"{k}: {v}" for k, v in list(attributes.items())[:20])
+        parts.append("Özellikler: " + attrs + ".")
+    if comps:
+        parts.append("Emsal ilanlar: " + "; ".join(comps[:3]) + ".")
     if query.strip():
-        state["aranan"] = query.strip()
-    return state
+        parts.insert(0, f"Aranan ürün: {query.strip()}.")
+    return " ".join(parts)
 
 
-def state_key(state: dict[str, Any]) -> str:
+def listing_state(listing: MarketListing, estimate: MarketEstimate, query: str = "") -> str:
+    details = listing.details or {}
+    return listing_text(listing.title, format_price(listing.price, listing.currency),
+                        str(details.get("description") or ""), query,
+                        details.get("attributes") or None, [c.title for c in estimate.comps[:3]])
+
+
+def state_key(state: dict[str, Any] | str) -> str:
     raw = json.dumps(state, ensure_ascii=False, sort_keys=True) + json.dumps(LISTING_QUESTIONS, sort_keys=True)
     return hashlib.sha1(raw.encode()).hexdigest()[:16]
 
@@ -148,7 +182,7 @@ class FastChecker:
         """Girdilerdeki fırsatlara kararları işler (yerinde); elenen ilan sayısını döner."""
         if self.failed or not entries:
             return 0
-        jobs: list[tuple[Entry, dict[str, Any], str]] = []
+        jobs: list[tuple[Entry, str, str]] = []
         for entry in entries:
             state = listing_state(entry[0], entry[1], query)
             jobs.append((entry, state, state_key(state)))
@@ -174,13 +208,27 @@ class FastChecker:
                      f"incelendi, {rejected} ilan elendi.")
         return rejected
 
-    def _ask(self, state: dict[str, Any]) -> dict[str, Any] | None:
+    def _ask(self, state: str) -> dict[str, Any] | None:
         if self.failed:
             return None
+        # Laya aynı istekte birden çok soruyu birbirine karıştırıp hepsine aynı cevabı veriyor.
+        # Sorular tek tek sorulunca doğru ayırıyor; cevaplar burada birleştirilir.
+        merged: dict[str, Any] = {}
         try:
-            return self.engine.decide(state, LISTING_QUESTIONS)
+            questions = questions_for(state)
+            for name, question in questions.items():
+                text = state
+                if name == "ayni_urun":
+                    import re
+                    title = re.search(r"İlan: ([^,]+),", state)
+                    wanted = re.search(r"Aranan ürün: ([^.]+)\.", state)
+                    text = " ".join(p for p in (
+                        f"Aranan ürün: {wanted.group(1)}." if wanted else "",
+                        f"İlan: {title.group(1)}." if title else "") if p)
+                merged.update(self.engine.decide(text, {name: question}))
         except DecisionError as exc:
             if not self.failed:
                 self.failed = True
                 self.say(f"⚠ Hızlı karar motoru kullanılamadı, kural tabanlı puanlamayla devam ediliyor: {exc}")
             return None
+        return merged

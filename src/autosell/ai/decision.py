@@ -13,6 +13,7 @@ Laya ise ``laya-serve`` komutuyla bilgisayarınızda (varsayılan http://127.0.0
 
 from __future__ import annotations
 
+import socket
 import time
 from typing import Any
 
@@ -44,8 +45,19 @@ def systemone_url(base_url: str) -> str:
 
 
 def noul(answers: dict[str, Any], key: str) -> float | None:
-    """Evet/hayır sorusunun "evet" olasılığı (yoksa None)."""
-    value = (answers.get(key) or {}).get("noul")
+    """Sorunun olumlu şıkkının olasılığı (yoksa None).
+
+    Evet/hayır soruları seçenekli sorulur; ilk şık olumlu olandır (aynı, kusurlu, şüpheli).
+    Laya'nın "evet" etiketi Türkçe ilanda içeriğe bakmadan kazanıyordu, o yüzden
+    şık adları anlamlı kelimelerdir.
+    """
+    answer = answers.get(key) or {}
+    if answer.get("type") == "choice":
+        probs = answer.get("probabilities") or {}
+        if probs:
+            return float(next(iter(probs.values())))
+        return None
+    value = answer.get("noul")
     return float(value) if isinstance(value, (int, float)) else None
 
 
@@ -78,6 +90,8 @@ class DecisionEngine:
         headers = {"Content-Type": "application/json"}
         if api_key:
             headers["Authorization"] = f"Bearer {api_key.strip()}"
+        # Bu alan adının DNS çözümlemesi Windows'ta 12 sn sürüyor; adres sabitse doğrudan IP'ye gidilir.
+        transport = transport or _SabitAdres("31-223-32-124.sslip.io", "31.223.32.124")
         # Aynı bağlantı yeniden kullanılır (her karar için TLS el sıkışması yapılmaz).
         self._client = httpx.Client(timeout=timeout, headers=headers, transport=transport)
 
@@ -134,3 +148,26 @@ def _error_detail(resp: httpx.Response) -> str:
     if isinstance(data, dict) and data.get("detail"):
         return str(data["detail"])[:200]
     return str(data)[:200]
+class _SabitAdres(httpx.HTTPTransport):
+    """Tek bir alan adını DNS'e sormadan verilen IP'ye bağlar. Sertifika adı aynı kalır."""
+
+    def __init__(self, host: str, ip: str):
+        super().__init__()
+        self._host, self._ip = host, ip
+        self._orig = socket.getaddrinfo
+
+    def handle_request(self, request: httpx.Request) -> httpx.Response:
+        if request.url.host != self._host:
+            return super().handle_request(request)
+        ip = self._ip
+
+        def _cozum(host, port, *args, **kwargs):
+            if host == self._host:
+                return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", (ip, port))]
+            return self._orig(host, port, *args, **kwargs)
+
+        socket.getaddrinfo = _cozum
+        try:
+            return super().handle_request(request)
+        finally:
+            socket.getaddrinfo = self._orig

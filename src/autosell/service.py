@@ -18,7 +18,7 @@ from .db import Database
 from .images import save_upload
 from .jobs import Job, JobInteraction, JobManager
 from .listing import ListingGenerator, basic_listing
-from .market.fastcheck import LISTING_QUESTIONS
+from .market.fastcheck import LISTING_QUESTIONS, listing_text, questions_for
 from .market.notify import send_telegram
 from .market.scanner import BudgetExhausted, MarketScanner
 from .models import Draft, PlatformListing, PublicationStatus, Watch, now_iso
@@ -421,9 +421,10 @@ class AutoSell:
         started = time.monotonic()
         try:
             for title, price, desc, expected in cases:
-                state = {"aranan": "iPhone 13 128 GB", "ilan": {"baslik": title, "fiyat": price, "aciklama": desc},
-                         "emsal_ilanlar": comps}
-                answers = engine.decide(state, LISTING_QUESTIONS)
+                state = listing_text(title, price, desc, "iPhone 13 128 GB", comps=comps)
+                answers = {}
+                for name, question in questions_for(state).items():
+                    answers.update(engine.decide(state, {name: question}))
                 kind, _ = choice(answers, "ilan_turu")
                 first_kind = first_kind or kind
                 got = (kind, (noul(answers, "ayni_urun") or 0) >= 0.5, (noul(answers, "kusurlu") or 0) >= 0.5,
